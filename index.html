@@ -537,7 +537,7 @@
   <section id="home-screen">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.1.4</h1>
+      <h1 class="home-title">CARROM STUDIO 0.1.5</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
@@ -1640,6 +1640,9 @@
           }
           this.remoteAudioEl.muted = false;
           this.remoteAudioEl.volume = 1.0;
+          if (this.remoteAudioEl.paused && this.remoteAudioEl.srcObject) {
+            this.remoteAudioEl.play().catch(() => {});
+          }
           return this.remoteAudioEl;
         }
 
@@ -1674,7 +1677,9 @@
             }
             audioEl.muted = false;
             audioEl.volume = 1.0;
-            audioEl.play().catch(() => {});
+            const tryPlay = () => audioEl.play().catch(() => {});
+            tryPlay();
+            setTimeout(tryPlay, 350);
           };
 
           pc.onicecandidate = (event) => {
