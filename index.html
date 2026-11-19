@@ -620,7 +620,7 @@
   <section id="home-screen">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.2.0</h1>
+      <h1 class="home-title">CARROM STUDIO 0.2.1</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
@@ -1012,7 +1012,6 @@
           this.turnDurationSec = 25;
           this.turnTimeLeft = 25;
           this.turnTimerInterval = null;
-          this.shotTimerStarted = false;
           this.aiTimeoutId = null;
           this.paused = true;
           this.sessionId = 0;
@@ -1250,10 +1249,10 @@
           this.striker = { x: 300, y: 488, vx: 0, vy: 0, r: STRIKER_R, type: "striker", active: true };
           this.resetStrikerPosition(false);
           this.updateHUD();
+          this.startTurnTimer();
         }
 
         stopTurnTimer() {
-          this.shotTimerStarted = false;
           if (this.turnTimerInterval) {
             clearInterval(this.turnTimerInterval);
             this.turnTimerInterval = null;
@@ -1295,34 +1294,34 @@
           }
         }
 
-        prepareTurnTimerBadge() {
-          this.stopTurnTimer();
-          this.turnTimeLeft = this.turnDurationSec;
-          this.renderTurnTimerUI();
-        }
-
         startTurnTimer() {
-          if (this.shotTimerStarted) return;
+          this.stopTurnTimer();
           const timerEl = document.getElementById("turn-timer");
-          if (this.paused || this.matchOver || this.roundEndedNoWinner || this.isMoving) {
-            if (timerEl) timerEl.textContent = "⏱ --";
+          if (this.paused || this.matchOver || this.roundEndedNoWinner) {
+            if (timerEl) {
+              timerEl.textContent = "⏱ --";
+              timerEl.classList.remove("urgent");
+            }
             return;
           }
 
-          this.shotTimerStarted = true;
           this.turnTimeLeft = this.turnDurationSec;
           this.renderTurnTimerUI();
 
           this.turnTimerInterval = setInterval(() => {
-            if (this.paused || this.matchOver || this.roundEndedNoWinner || this.isMoving) {
+            if (this.paused || this.matchOver || this.roundEndedNoWinner) {
               this.stopTurnTimer();
               return;
             }
-            this.turnTimeLeft = Math.max(0, this.turnTimeLeft - 1);
-            this.renderTurnTimerUI();
+            // Countdown continues steadily during the round and resets cleanly per turn
+            if (this.turnTimeLeft > 0) {
+              this.turnTimeLeft -= 1;
+              this.renderTurnTimerUI();
+            }
 
-            if (this.turnTimeLeft <= 0) {
-              this.stopTurnTimer();
+            if (this.turnTimeLeft <= 0 && !this.isMoving) {
+              this.turnTimeLeft = this.turnDurationSec;
+              this.renderTurnTimerUI();
               this.handleTurnTimeout();
             }
           }, 1000);
@@ -1359,6 +1358,7 @@
 
           this.turn = timedOutPlayer === "white" ? "black" : "white";
           this.resetStrikerPosition(true);
+          this.startTurnTimer();
 
           if (this.mode === "ONLINE" && this.onlineRole === "HOST") {
             this.broadcastState({
@@ -1395,7 +1395,11 @@
           }
           document.getElementById("power-fill").style.width = "0%";
           this.updateHUD();
-          this.prepareTurnTimerBadge();
+          this.turnTimeLeft = this.turnDurationSec;
+          this.renderTurnTimerUI();
+          if (!this.turnTimerInterval) {
+            this.startTurnTimer();
+          }
 
           if (triggerAI && this.mode === "AI" && this.turn === "black") {
             const currentSession = this.sessionId;
@@ -1419,7 +1423,6 @@
           if (this.paused || this.mode !== "AI" || this.turn !== "black" || this.isMoving || this.matchOver || this.roundEndedNoWinner) {
             return;
           }
-          this.startTurnTimer();
 
           const baselineY = 112;
           const queen = this.pieces.find((p) => p.active && p.type === "queen");
@@ -1533,7 +1536,6 @@
           const slider = document.getElementById("striker-pos");
           slider.addEventListener("input", (e) => {
             if (!this.isLocalTurn()) return;
-            this.startTurnTimer();
             let val = parseFloat(e.target.value);
             if (this.shouldFlipPerspective()) val = BOARD_SIZE - val;
             this.striker.x = Math.max(155, Math.min(445, val));
@@ -1559,11 +1561,9 @@
             const dist = Math.hypot(pos.x - this.striker.x, pos.y - this.striker.y);
             // Allow pulling from striker disk or nearby on baseline
             if (dist <= this.striker.r + 48) {
-              this.startTurnTimer();
               this.isAiming = true;
               this.aimVec = { x: 0, y: 0 };
               document.getElementById("power-fill").style.width = "0%";
-              this.broadcastState({ type: "TIMER_START" });
             }
           };
 
@@ -1612,7 +1612,6 @@
         }
 
         launchStriker(x, vx, vy, broadcast = false) {
-          this.stopTurnTimer();
           this.striker.x = x;
           this.striker.y = this.turn === "white" ? 488 : 112;
           this.striker.vx = vx;
@@ -2048,9 +2047,16 @@
             this.turn = nextTurn;
             this.resetStrikerPosition(true);
           } else {
-            // GUEST: apply predicted turn immediately so UI never stays locked, then snap to Host's authoritative TURN_SYNC
-            this.turn = nextTurn;
-            this.resetStrikerPosition(false);
+            // GUEST: clear local moving lock and wait for Host's authoritative TURN_SYNC without early turn flip
+            this.isMoving = false;
+            this.pocketedThisTurn = [];
+            this.remoteAim = null;
+            this.striker.vx = 0;
+            this.striker.vy = 0;
+            this.striker.active = true;
+            this.striker.y = this.turn === "white" ? 488 : 112;
+            document.getElementById("power-fill").style.width = "0%";
+            this.updateHUD();
           }
         }
 
@@ -2553,8 +2559,6 @@
             } else if (payload.type === "SLIDE") {
               this.striker.x = payload.x;
               if (typeof payload.y === "number") this.striker.y = payload.y;
-            } else if (payload.type === "TIMER_START") {
-              this.startTurnTimer();
             } else if (payload.type === "AIM") {
               this.remoteAim = payload.vec;
             } else if (payload.type === "SHOOT") {
