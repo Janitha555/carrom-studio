@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Carrom Studio test 02 — Nexora Games</title>
+  <title>Carrom Studio — Nexora Games</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
@@ -397,7 +397,574 @@
           this.matchStarted = false;
           this.handshakeTimer = null;
           this.roundEndedNoWinner = false;
-// ... existing code ... -->
+          this.heartbeatTimer = null;
+          this.disconnectWatchTimer = null;
+          this.lastPeerHeartbeat = 0;
+          this.onRoundEndedNoWinner = null;
+
+          this.turn = "white";
+          this.scores = { white: 0, black: 0 };
+          this.queenState = "board";
+          this.pocketedThisTurn = [];
+          this.isMoving = false;
+          this.isAiming = false;
+          this.aimVec = { x: 0, y: 0 };
+          this.remoteAim = null;
+
+          this.pocketRipples = [];
+          this.sinkingPieces = [];
+          this.shockwaves = [];
+
+          this.pieces = [];
+          this.striker = null;
+          this.initMatch();
+          this.bindEvents();
+          this.loop();
+        }
+
+        renderWoodBoard() {
+          const off = document.createElement("canvas");
+          off.width = BOARD_SIZE; off.height = BOARD_SIZE;
+          const c = off.getContext("2d");
+
+          const frameGrad = c.createLinearGradient(0, 0, BOARD_SIZE, BOARD_SIZE);
+          frameGrad.addColorStop(0, "#3b2014");
+          frameGrad.addColorStop(0.5, "#26130b");
+          frameGrad.addColorStop(1, "#3a1e12");
+          c.fillStyle = frameGrad;
+          c.fillRect(0, 0, BOARD_SIZE, BOARD_SIZE);
+
+          c.strokeStyle = "rgba(255, 215, 160, 0.16)";
+          c.lineWidth = 2;
+          c.strokeRect(FRAME_W - 1, FRAME_W - 1, BOARD_SIZE - (FRAME_W - 1) * 2, BOARD_SIZE - (FRAME_W - 1) * 2);
+
+          const grad = c.createRadialGradient(300, 300, 35, 300, 300, 350);
+          grad.addColorStop(0, "#f8e4bc");
+          grad.addColorStop(0.7, "#ebd09c");
+          grad.addColorStop(1, "#d9b77c");
+          c.fillStyle = grad;
+          c.fillRect(FRAME_W, FRAME_W, BOARD_SIZE - FRAME_W * 2, BOARD_SIZE - FRAME_W * 2);
+
+          c.strokeStyle = "rgba(120, 72, 28, 0.055)";
+          c.lineWidth = 1;
+          for (let y = FRAME_W; y < PLAY_MAX; y += 4) {
+            c.beginPath(); c.moveTo(FRAME_W, y); c.lineTo(PLAY_MAX, y); c.stroke();
+          }
+
+          c.strokeStyle = "#8b261d";
+          c.lineWidth = 2.2;
+          c.beginPath(); c.arc(300, 300, 58, 0, Math.PI * 2); c.stroke();
+          c.strokeStyle = "rgba(139, 38, 29, 0.45)";
+          c.lineWidth = 1.2;
+          c.beginPath(); c.arc(300, 300, 48, 0, Math.PI * 2); c.stroke();
+
+          c.fillStyle = "#b91c1c";
+          c.beginPath(); c.arc(300, 300, 14, 0, Math.PI * 2); c.fill();
+
+          const drawBaseline = (x1, y1, x2, y2) => {
+            c.strokeStyle = "#1e293b"; c.lineWidth = 1.6;
+            c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+            [ [x1, y1], [x2, y2] ].forEach(([cx, cy]) => {
+              c.fillStyle = "#dc2626";
+              c.beginPath(); c.arc(cx, cy, 10.5, 0, Math.PI * 2); c.fill();
+              c.strokeStyle = "#fff"; c.lineWidth = 1.2; c.stroke();
+            });
+          };
+          drawBaseline(155, 488, 445, 488);
+          drawBaseline(155, 112, 445, 112);
+          drawBaseline(112, 155, 112, 445);
+          drawBaseline(488, 155, 488, 445);
+
+          POCKETS.forEach(p => {
+            const pGrad = c.createRadialGradient(p.x - 3, p.y - 3, 4, p.x, p.y, POCKET_R);
+            pGrad.addColorStop(0, "#05070a");
+            pGrad.addColorStop(0.85, "#11161f");
+            pGrad.addColorStop(1, "#2b1810");
+            c.fillStyle = pGrad;
+            c.beginPath(); c.arc(p.x, p.y, POCKET_R, 0, Math.PI * 2); c.fill();
+          });
+
+          return off;
+        }
+
+        initMatch() {
+          this.scores = { white: 0, black: 0 };
+          this.turn = "white";
+          this.queenState = "board";
+          this.roundEndedNoWinner = false;
+          this.pocketRipples = [];
+          this.sinkingPieces = [];
+          this.shockwaves = [];
+          this.pieces = [];
+
+          this.pieces.push({ x: 300, y: 300, vx: 0, vy: 0, r: COIN_R, type: "queen", active: true });
+
+          const ring1 = ["white", "black", "white", "black", "white", "black"];
+          ring1.forEach((t, i) => {
+            const a = (i * Math.PI) / 3;
+            this.pieces.push({
+              x: 300 + Math.cos(a) * (COIN_R * 2.05),
+              y: 300 + Math.sin(a) * (COIN_R * 2.05),
+              vx: 0, vy: 0, r: COIN_R, type: t, active: true
+            });
+          });
+
+          const ring2 = [
+            "white", "black", "white", "black", "white", "black",
+            "white", "black", "white", "black", "white", "black"
+          ];
+          ring2.forEach((t, i) => {
+            const a = (i * Math.PI) / 6;
+            this.pieces.push({
+              x: 300 + Math.cos(a) * (COIN_R * 4.1),
+              y: 300 + Math.sin(a) * (COIN_R * 4.1),
+              vx: 0, vy: 0, r: COIN_R, type: t, active: true
+            });
+          });
+
+          this.striker = { x: 300, y: 488, vx: 0, vy: 0, r: STRIKER_R, type: "striker", active: true };
+          this.resetStrikerPosition(false);
+          this.updatePowerMeter(0);
+          this.updateHUD();
+        }
+
+        updatePowerMeter(ratio) {
+          const pct = Math.round(Math.max(0, Math.min(1, ratio)) * 100);
+          const fill = document.getElementById("power-fill");
+          const label = document.getElementById("power-pct");
+          if (fill) fill.style.width = `${pct}%`;
+          if (label) label.textContent = `${pct}%`;
+        }
+
+        resetStrikerPosition(triggerAI = true) {
+          this.isMoving = false;
+          this.pocketedThisTurn = [];
+          this.remoteAim = null;
+          this.striker.active = true;
+          this.striker.vx = 0; this.striker.vy = 0;
+          this.striker.x = 300;
+          this.striker.y = this.turn === "white" ? 488 : 112;
+          document.getElementById("striker-pos").value = 300;
+          this.updateHUD();
+
+          if (triggerAI && this.mode === "AI" && this.turn === "black" && !this.roundEndedNoWinner) {
+            setTimeout(() => {
+              if (this.mode === "AI" && this.turn === "black" && !this.isMoving && !this.roundEndedNoWinner) {
+                this.executeAITurn();
+              }
+            }, 700);
+          }
+        }
+
+        isLocalTurn() {
+          if (this.roundEndedNoWinner || this.isMoving) return false;
+          if (this.mode === "PVP") return true;
+          if (this.mode === "AI") return this.turn === "white";
+          if (this.mode === "ONLINE") {
+            if (!this.matchStarted) return false;
+            return (this.onlineRole === "HOST" && this.turn === "white") ||
+                   (this.onlineRole === "GUEST" && this.turn === "black");
+          }
+          return false;
+        }
+
+        shouldFlipPerspective() {
+          return this.mode === "ONLINE" && this.onlineRole === "GUEST";
+        }
+
+        toLogicalCoords(clientX, clientY) {
+          const rect = this.canvas.getBoundingClientRect();
+          let x = ((clientX - rect.left) / rect.width) * BOARD_SIZE;
+          let y = ((clientY - rect.top) / rect.height) * BOARD_SIZE;
+          if (this.shouldFlipPerspective()) {
+            x = BOARD_SIZE - x;
+            y = BOARD_SIZE - y;
+          }
+          return { x, y };
+        }
+
+        bindEvents() {
+          const slider = document.getElementById("striker-pos");
+          slider.addEventListener("input", (e) => {
+            if (!this.isLocalTurn()) return;
+            let val = parseFloat(e.target.value);
+            if (this.shouldFlipPerspective()) val = BOARD_SIZE - val;
+            this.striker.x = Math.max(155, Math.min(445, val));
+            this.broadcastState({ type: "SLIDE", x: this.striker.x });
+          });
+
+          const onDown = (e) => {
+            if (!this.isLocalTurn()) return;
+            const pt = e.touches ? e.touches[0] : e;
+            const pos = this.toLogicalCoords(pt.clientX, pt.clientY);
+            const dist = Math.hypot(pos.x - this.striker.x, pos.y - this.striker.y);
+            if (dist <= this.striker.r + 24) {
+              this.isAiming = true;
+              this.aimVec = { x: 0, y: 0 };
+              this.updatePowerMeter(0);
+            }
+          };
+
+          const onMove = (e) => {
+            if (!this.isAiming) return;
+            const pt = e.touches ? e.touches[0] : e;
+            const pos = this.toLogicalCoords(pt.clientX, pt.clientY);
+            let dx = this.striker.x - pos.x;
+            let dy = this.striker.y - pos.y;
+            const mag = Math.hypot(dx, dy);
+            const maxPull = 140;
+            if (mag > maxPull) {
+              dx = (dx / mag) * maxPull;
+              dy = (dy / mag) * maxPull;
+            }
+            this.aimVec = { x: dx, y: dy };
+            this.updatePowerMeter(Math.hypot(dx, dy) / maxPull);
+            this.broadcastState({ type: "AIM", vec: this.aimVec });
+          };
+
+          const onUp = () => {
+            if (!this.isAiming) return;
+            this.isAiming = false;
+            const mag = Math.hypot(this.aimVec.x, this.aimVec.y);
+            this.updatePowerMeter(0);
+            if (mag > 14) {
+              const vx = this.aimVec.x * 0.24;
+              const vy = this.aimVec.y * 0.24;
+              this.launchStriker(this.striker.x, vx, vy, true);
+            }
+            this.aimVec = { x: 0, y: 0 };
+          };
+
+          this.canvas.addEventListener("mousedown", onDown);
+          window.addEventListener("mousemove", onMove);
+          window.addEventListener("mouseup", onUp);
+          this.canvas.addEventListener("touchstart", onDown, { passive: true });
+          window.addEventListener("touchmove", onMove, { passive: true });
+          window.addEventListener("touchend", onUp);
+        }
+
+        launchStriker(x, vx, vy, broadcast = false) {
+          this.striker.x = x;
+          this.striker.y = this.turn === "white" ? 488 : 112;
+          this.striker.vx = vx;
+          this.striker.vy = vy;
+          this.striker.active = true;
+          this.pocketedThisTurn = [];
+          this.isMoving = true;
+          this.remoteAim = null;
+          this.shockwaves.push({ x: this.striker.x, y: this.striker.y, r: this.striker.r, alpha: 0.75 });
+          AudioFX.clack(0.85);
+          if (broadcast) {
+            this.broadcastState({
+              type: "SHOOT",
+              turn: this.turn,
+              x: this.striker.x,
+              y: this.striker.y,
+              vx,
+              vy
+            });
+          }
+        }
+
+        executeAITurn() {
+          if (this.turn !== "black" || this.mode !== "AI" || this.roundEndedNoWinner) return;
+          const targets = this.pieces.filter(p => p.active && (p.type === "black" || p.type === "queen"));
+          if (!targets.length) return;
+          const target = targets[Math.floor(Math.random() * targets.length)];
+          const strikerX = Math.max(165, Math.min(435, target.x + (Math.random() * 44 - 22)));
+          const angle = Math.atan2(target.y - 112, target.x - strikerX);
+          const power = 24 + Math.random() * 6;
+          this.launchStriker(strikerX, Math.cos(angle) * power, Math.sin(angle) * power, false);
+        }
+
+        spawnPocketFX(x, y, piece) {
+          this.pocketRipples.push({ x, y, r: POCKET_R * 0.6, alpha: 0.9 });
+          if (piece.type !== "striker") {
+            this.sinkingPieces.push({
+              x, y, r: piece.r, type: piece.type, scale: 1, alpha: 1
+            });
+          }
+        }
+
+        stepPhysics() {
+          for (let i = this.pocketRipples.length - 1; i >= 0; i--) {
+            const rp = this.pocketRipples[i];
+            rp.r += 1.4;
+            rp.alpha -= 0.035;
+            if (rp.alpha <= 0) this.pocketRipples.splice(i, 1);
+          }
+          for (let i = this.sinkingPieces.length - 1; i >= 0; i--) {
+            const sp = this.sinkingPieces[i];
+            sp.scale -= 0.08;
+            sp.alpha -= 0.09;
+            if (sp.scale <= 0.1 || sp.alpha <= 0) this.sinkingPieces.splice(i, 1);
+          }
+          for (let i = this.shockwaves.length - 1; i >= 0; i--) {
+            const sw = this.shockwaves[i];
+            sw.r += 2.2;
+            sw.alpha -= 0.05;
+            if (sw.alpha <= 0) this.shockwaves.splice(i, 1);
+          }
+
+          if (!this.isMoving || this.roundEndedNoWinner) return;
+          const all = [...this.pieces.filter(p => p.active)];
+          if (this.striker.active) all.push(this.striker);
+
+          for (let s = 0; s < SUB_STEPS; s++) {
+            all.forEach(b => {
+              b.x += b.vx / SUB_STEPS;
+              b.y += b.vy / SUB_STEPS;
+
+              if (b.x - b.r < PLAY_MIN) { b.x = PLAY_MIN + b.r; b.vx = Math.abs(b.vx) * RESTITUTION; }
+              if (b.x + b.r > PLAY_MAX) { b.x = PLAY_MAX - b.r; b.vx = -Math.abs(b.vx) * RESTITUTION; }
+              if (b.y - b.r < PLAY_MIN) { b.y = PLAY_MIN + b.r; b.vy = Math.abs(b.vy) * RESTITUTION; }
+              if (b.y + b.r > PLAY_MAX) { b.y = PLAY_MAX - b.r; b.vy = -Math.abs(b.vy) * RESTITUTION; }
+            });
+
+            for (let i = 0; i < all.length; i++) {
+              for (let j = i + 1; j < all.length; j++) {
+                const a = all[i], b = all[j];
+                const dx = b.x - a.x, dy = b.y - a.y;
+                const dist = Math.hypot(dx, dy);
+                const minDist = a.r + b.r;
+                if (dist > 0 && dist < minDist) {
+                  const nx = dx / dist, ny = dy / dist;
+                  const overlap = minDist - dist;
+                  a.x -= nx * overlap * 0.5; a.y -= ny * overlap * 0.5;
+                  b.x += nx * overlap * 0.5; b.y += ny * overlap * 0.5;
+
+                  const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
+                  const velAlongNormal = rvx * nx + rvy * ny;
+                  if (velAlongNormal < 0) {
+                    const imp = -(1 + RESTITUTION) * velAlongNormal * 0.5;
+                    a.vx -= imp * nx; a.vy -= imp * ny;
+                    b.vx += imp * nx; b.vy += imp * ny;
+                    if (s === 0 && Math.abs(velAlongNormal) > 1.5) {
+                      AudioFX.clack(Math.min(1, Math.abs(velAlongNormal) / 18));
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          let anyMoving = false;
+          all.forEach(b => {
+            b.vx *= FRICTION;
+            b.vy *= FRICTION;
+            if (Math.hypot(b.vx, b.vy) < 0.08) { b.vx = 0; b.vy = 0; }
+            else { anyMoving = true; }
+
+            POCKETS.forEach(p => {
+              if (b.active && Math.hypot(b.x - p.x, b.y - p.y) < POCKET_R - 2) {
+                b.active = false;
+                b.vx = 0; b.vy = 0;
+                this.pocketedThisTurn.push(b.type);
+                this.spawnPocketFX(p.x, p.y, b);
+                AudioFX.pocket();
+              }
+            });
+          });
+
+          if (!anyMoving) {
+            this.resolveTurn();
+          }
+        }
+
+        resolveTurn() {
+          this.isMoving = false;
+          const activeShooter = this.turn;
+          const oppColor = activeShooter === "white" ? "black" : "white";
+          let keepTurn = false;
+
+          const strikerFoul = this.pocketedThisTurn.includes("striker");
+          const myCoins = this.pocketedThisTurn.filter(t => t === activeShooter).length;
+          const oppCoins = this.pocketedThisTurn.filter(t => t === oppColor).length;
+          const gotQueen = this.pocketedThisTurn.includes("queen");
+
+          if (myCoins > 0) {
+            this.scores[activeShooter] += myCoins * 10;
+            keepTurn = true;
+          }
+          if (oppCoins > 0) {
+            this.scores[oppColor] += oppCoins * 10;
+          }
+          if (gotQueen) {
+            this.scores[activeShooter] += 30;
+            keepTurn = true;
+          }
+          if (strikerFoul) {
+            this.scores[activeShooter] = Math.max(0, this.scores[activeShooter] - 10);
+            keepTurn = false;
+          }
+
+          const nextTurn = keepTurn ? activeShooter : oppColor;
+
+          if (this.mode === "ONLINE" && this.onlineRole === "HOST") {
+            this.turn = nextTurn;
+            this.resetStrikerPosition(false);
+            this.broadcastState({
+              type: "TURN_SYNC",
+              turn: this.turn,
+              scores: this.scores,
+              activeMask: this.pieces.map(p => p.active)
+            });
+          } else if (this.mode !== "ONLINE") {
+            this.turn = nextTurn;
+            this.resetStrikerPosition(true);
+          } else {
+            this.turn = nextTurn;
+            this.resetStrikerPosition(false);
+          }
+        }
+
+        updateHUD() {
+          document.getElementById("p1-score").textContent = this.scores.white;
+          document.getElementById("p2-score").textContent = this.scores.black;
+
+          const badge = document.getElementById("turn-indicator");
+          const p1Box = document.getElementById("p1-box");
+          const p2Box = document.getElementById("p2-box");
+
+          badge.classList.remove("black-turn", "ended-state");
+
+          if (this.roundEndedNoWinner) {
+            badge.textContent = "ROUND ENDED • NO WINNER";
+            badge.classList.add("ended-state");
+            p1Box.classList.remove("dimmed");
+            p2Box.classList.remove("dimmed");
+            return;
+          }
+
+          if (this.turn === "white") {
+            badge.textContent = "WHITE'S TURN";
+            p1Box.classList.remove("dimmed");
+            p2Box.classList.add("dimmed");
+          } else {
+            badge.textContent = "BLACK'S TURN";
+            badge.classList.add("black-turn");
+            p1Box.classList.add("dimmed");
+            p2Box.classList.remove("dimmed");
+          }
+        }
+
+        drawPieceDisk(ctx, x, y, r, type, alpha = 1) {
+          ctx.save();
+          ctx.globalAlpha = alpha;
+
+          ctx.beginPath();
+          ctx.arc(x + 2, y + 3, r, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+          ctx.fill();
+
+          const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.15, x, y, r);
+          if (type === "white") {
+            grad.addColorStop(0, "#ffffff");
+            grad.addColorStop(0.75, "#e2e8f0");
+            grad.addColorStop(1, "#94a3b8");
+          } else if (type === "black") {
+            grad.addColorStop(0, "#475569");
+            grad.addColorStop(0.7, "#1e293b");
+            grad.addColorStop(1, "#090d16");
+          } else if (type === "queen") {
+            grad.addColorStop(0, "#fb7185");
+            grad.addColorStop(0.65, "#dc2626");
+            grad.addColorStop(1, "#7f1d1d");
+          } else {
+            grad.addColorStop(0, "#67e8f9");
+            grad.addColorStop(0.65, "#06b6d4");
+            grad.addColorStop(1, "#164e63");
+          }
+
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fillStyle = grad;
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+          ctx.strokeStyle = type === "striker" ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.22)";
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
+
+          ctx.restore();
+        }
+
+        draw() {
+          const ctx = this.ctx;
+          ctx.save();
+          if (this.shouldFlipPerspective()) {
+            ctx.translate(BOARD_SIZE, BOARD_SIZE);
+            ctx.rotate(Math.PI);
+          }
+
+          ctx.drawImage(this.boardTex, 0, 0);
+
+          this.shockwaves.forEach(sw => {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(34, 211, 238, ${sw.alpha})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+          });
+
+          this.pocketRipples.forEach(rp => {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(34, 211, 238, ${rp.alpha * 0.75})`;
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+            ctx.restore();
+          });
+
+          this.sinkingPieces.forEach(sp => {
+            this.drawPieceDisk(ctx, sp.x, sp.y, sp.r * sp.scale, sp.type, sp.alpha);
+          });
+
+          const activeAim = this.isAiming ? this.aimVec : this.remoteAim;
+          if (activeAim && Math.hypot(activeAim.x, activeAim.y) > 8) {
+            const powerRatio = Math.min(1, Math.hypot(activeAim.x, activeAim.y) / 140);
+            ctx.save();
+            ctx.strokeStyle = powerRatio > 0.7 ? "#f59e0b" : "#22d3ee";
+            ctx.lineWidth = 3;
+            ctx.setLineDash([7, 6]);
+            ctx.beginPath();
+            ctx.moveTo(this.striker.x, this.striker.y);
+            ctx.lineTo(this.striker.x + activeAim.x * 2.2, this.striker.y + activeAim.y * 2.2);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          this.pieces.forEach(p => {
+            if (!p.active) return;
+            this.drawPieceDisk(ctx, p.x, p.y, p.r, p.type, 1);
+          });
+
+          if (this.striker && this.striker.active) {
+            if (this.isLocalTurn() && !this.isMoving) {
+              ctx.save();
+              ctx.beginPath();
+              ctx.arc(this.striker.x, this.striker.y, this.striker.r + 5, 0, Math.PI * 2);
+              ctx.strokeStyle = "rgba(34, 211, 238, 0.45)";
+              ctx.lineWidth = 2;
+              ctx.stroke();
+              ctx.restore();
+            }
+            this.drawPieceDisk(ctx, this.striker.x, this.striker.y, this.striker.r, "striker", 1);
+          }
+
+          ctx.restore();
+        }
+
+        loop() {
+          this.stepPhysics();
+          this.draw();
+          requestAnimationFrame(() => this.loop());
+        }
+
         cleanupOnlineTimers() {
           if (this.heartbeatTimer) { clearInterval(this.heartbeatTimer); this.heartbeatTimer = null; }
           if (this.disconnectWatchTimer) { clearInterval(this.disconnectWatchTimer); this.disconnectWatchTimer = null; }
@@ -421,7 +988,14 @@
             this.localBus = null;
           }
           this.updateHUD();
-// ... existing code ... -->
+          if (typeof this.onRoundEndedNoWinner === "function") {
+            this.onRoundEndedNoWinner(
+              "Round Ended — No Winner",
+              `${reasonText} The live match has been closed without a win or loss.`
+            );
+          }
+        }
+
         handleNetworkPayload(payload) {
           if (!payload || !payload.type) return;
           this.lastPeerHeartbeat = Date.now();
@@ -483,7 +1057,6 @@
           this.lastPeerHeartbeat = Date.now();
 
           if (role === "GUEST") {
-            // Send GUEST_HELLO repeatedly until Host acknowledges start
             this.broadcastState({ type: "GUEST_HELLO" });
             this.handshakeTimer = setInterval(() => {
               if (!this.matchStarted && !this.roundEndedNoWinner) {
@@ -525,13 +1098,11 @@
           this.roundEndedNoWinner = false;
           this.lastPeerHeartbeat = Date.now();
 
-          // Local same-browser tab fallback channel
           if ("BroadcastChannel" in window) {
             this.localBus = new BroadcastChannel(`carrom_local_${code}`);
             this.localBus.onmessage = (ev) => this.handleNetworkPayload(ev.data);
           }
 
-          // If Supabase key is not configured yet, allow instant local multi-tab testing
           if (!supabase) {
             this.startOnlineLoops(role);
             return;
