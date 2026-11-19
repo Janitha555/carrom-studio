@@ -537,7 +537,7 @@
   <section id="home-screen">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.1.6</h1>
+      <h1 class="home-title">CARROM STUDIO 0.1.7</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
@@ -681,17 +681,28 @@
         { urls: "stun:stun1.l.google.com:19302" },
         { urls: "stun:stun2.l.google.com:19302" },
         { urls: "stun:stun3.l.google.com:19302" },
-        { urls: "stun:stun4.l.google.com:19302" },
-        {
-          urls: [
-            "turn:YOUR_TURN_HOST:3478?transport=udp",
-            "turn:YOUR_TURN_HOST:3478?transport=tcp",
-            "turns:YOUR_TURN_HOST:5349?transport=tcp"
-          ],
-          username: "YOUR_TURN_USERNAME",
-          credential: "YOUR_TURN_PASSWORD"
-        }
+        { urls: "stun:stun4.l.google.com:19302" }
       ];
+
+      // Optional: Point to a backend endpoint (e.g. Cloudflare Worker / Supabase Edge Function)
+      // that returns JSON `{ iceServers: [ { urls: ["turn:..."], username: "...", credential: "..." } ] }`
+      // for short-lived, secure TURN credentials in production.
+      const _TURN_CREDENTIALS_URL = "https://qbwfklkicamrlnuhcega.supabase.co/functions/v1/webrtc-ice";
+
+      async function resolveIceServers() {
+        const servers = [..._RTC_ICE_SERVERS];
+        if (!_TURN_CREDENTIALS_URL) return servers;
+        try {
+          const res = await fetch(_TURN_CREDENTIALS_URL, { cache: "no-store" });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.iceServers) && data.iceServers.length > 0) {
+              return [...servers, ...data.iceServers];
+            }
+          }
+        } catch (_) {}
+        return servers;
+      }
 
       let supabase = null;
       if (window.supabase && _SB_KEY !== "YOUR_SUPABASE_ANON_KEY") {
@@ -1649,7 +1660,7 @@
           return this.remoteAudioEl;
         }
 
-        createPeerConnection(forceNew = false) {
+        createPeerConnection(forceNew = false, iceServers = _RTC_ICE_SERVERS) {
           if (this.peerConn && !forceNew) return this.peerConn;
           if (this.peerConn && forceNew) {
             try { this.peerConn.close(); } catch (_) {}
@@ -1657,7 +1668,7 @@
           }
 
           const pc = new RTCPeerConnection({
-            iceServers: _RTC_ICE_SERVERS,
+            iceServers,
             iceCandidatePoolSize: 4
           });
 
@@ -1719,7 +1730,8 @@
 
         async sendFreshOffer() {
           if (this.mode !== "ONLINE") return;
-          const pc = this.createPeerConnection(true);
+          const iceServers = await resolveIceServers();
+          const pc = this.createPeerConnection(true, iceServers);
           const offer = await pc.createOffer({ offerToReceiveAudio: true });
           await pc.setLocalDescription(offer);
           this.broadcastState({ type: "RTC_OFFER", offer });
@@ -1737,14 +1749,15 @@
 
         async handleSignaling(payload) {
           if (!payload || this.mode !== "ONLINE") return;
+          const iceServers = await resolveIceServers();
           if (payload.type === "RTC_READY") {
             if (this.onlineRole === "HOST" && this.micEnabled) {
               await this.sendFreshOffer();
             } else {
-              this.createPeerConnection(false);
+              this.createPeerConnection(false, iceServers);
             }
           } else if (payload.type === "RTC_OFFER" && payload.offer) {
-            const pc = this.createPeerConnection(true);
+            const pc = this.createPeerConnection(true, iceServers);
             await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
             await this.flushIceCandidates(pc);
             const answer = await pc.createAnswer();
@@ -1752,14 +1765,14 @@
             this.broadcastState({ type: "RTC_ANSWER", answer });
             this.ensureRemoteAudio().play().catch(() => {});
           } else if (payload.type === "RTC_ANSWER" && payload.answer) {
-            const pc = this.createPeerConnection(false);
+            const pc = this.createPeerConnection(false, iceServers);
             if (pc.signalingState === "have-local-offer" || pc.signalingState === "have-remote-offer") {
               await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
               await this.flushIceCandidates(pc);
               this.ensureRemoteAudio().play().catch(() => {});
             }
           } else if (payload.type === "RTC_ICE" && payload.candidate) {
-            const pc = this.createPeerConnection(false);
+            const pc = this.createPeerConnection(false, iceServers);
             if (pc.remoteDescription && pc.remoteDescription.type) {
               await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(() => {});
             } else {
