@@ -288,12 +288,14 @@
     #canvas-wrap {
       position: relative;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       flex: 1;
       width: 100%;
       max-width: 560px;
-      padding: 8px 12px;
+      padding: 6px 12px 4px;
+      gap: 6px;
     }
 
     canvas#board {
@@ -301,16 +303,25 @@
       box-shadow: 0 28px 65px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(34, 211, 238, 0.14);
       touch-action: none;
       max-width: 100%;
-      max-height: 100%;
+      flex: 1;
+      min-height: 0;
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
     }
 
     .controls-bar {
       width: 100%;
-      max-width: 560px;
-      padding: 6px 18px 14px;
+      max-width: 520px;
+      padding: 8px 14px 12px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
+      background: rgba(17, 22, 31, 0.92);
+      border: 1px solid rgba(34, 211, 238, 0.22);
+      border-radius: 14px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+      flex-shrink: 0;
+      z-index: 5;
     }
 
     .slider-row {
@@ -321,7 +332,8 @@
 
     .slider-row span {
       font-size: 0.72rem;
-      color: var(--text-muted);
+      font-weight: 700;
+      color: var(--accent);
       min-width: 72px;
       letter-spacing: 0.6px;
     }
@@ -569,17 +581,16 @@
 
     <div id="canvas-wrap">
       <canvas id="board" width="600" height="600"></canvas>
-    </div>
-
-    <div class="controls-bar">
-      <div class="slider-row">
-        <span>POSITION</span>
-        <input type="range" id="striker-pos" min="155" max="445" value="300" />
-      </div>
-      <div class="slider-row">
-        <span>POWER</span>
-        <div class="power-track">
-          <div class="power-fill" id="power-fill"></div>
+      <div class="controls-bar">
+        <div class="slider-row">
+          <span>POSITION</span>
+          <input type="range" id="striker-pos" min="155" max="445" value="300" />
+        </div>
+        <div class="slider-row">
+          <span>POWER</span>
+          <div class="power-track">
+            <div class="power-fill" id="power-fill"></div>
+          </div>
         </div>
       </div>
     </div>
