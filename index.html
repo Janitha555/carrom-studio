@@ -250,6 +250,54 @@
       color: #fff;
     }
 
+    .coin-tray {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .coin-tray.right {
+      justify-content: flex-end;
+    }
+
+    .coin-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 255, 255, 0.22);
+      background: rgba(15, 23, 42, 0.75);
+      transition: transform 0.28s cubic-bezier(0.2, 1.3, 0.4, 1), background 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .coin-dot.filled-white {
+      background: radial-gradient(circle at 35% 35%, #ffffff, #cbd5e1);
+      border-color: #ffffff;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.65);
+      transform: scale(1.12);
+    }
+
+    .coin-dot.filled-black {
+      background: radial-gradient(circle at 35% 35%, #64748b, #0f172a);
+      border-color: #f59e0b;
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.55);
+      transform: scale(1.12);
+    }
+
+    .coin-dot.queen-dot {
+      width: 14px;
+      height: 14px;
+      border-color: rgba(244, 63, 94, 0.45);
+    }
+
+    .coin-dot.queen-dot.filled-queen {
+      background: radial-gradient(circle at 35% 35%, #fda4af, #e11d48);
+      border-color: #ffe4e6;
+      box-shadow: 0 0 10px rgba(244, 63, 94, 0.85);
+      transform: scale(1.18);
+    }
+
     .center-status {
       display: flex;
       flex-direction: column;
@@ -507,6 +555,41 @@
       100% { transform: scale(1); opacity: 1; }
     }
 
+    @keyframes pulseUrgent {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.07); }
+    }
+
+    .timer-pill {
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 2px 9px;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.16);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      letter-spacing: 0.5px;
+      transition: all 0.2s ease;
+    }
+
+    .timer-pill.urgent {
+      background: rgba(239, 68, 68, 0.22);
+      color: #fca5a5;
+      border-color: rgba(239, 68, 68, 0.65);
+      animation: pulseUrgent 0.65s infinite;
+    }
+
+    .flying-coin-dom {
+      position: fixed;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      z-index: 88;
+      pointer-events: none;
+      transform: translate(-50%, -50%) scale(1.25);
+      transition: left 0.68s cubic-bezier(0.22, 1, 0.36, 1), top 0.68s cubic-bezier(0.22, 1, 0.36, 1), transform 0.68s ease, opacity 0.2s ease;
+    }
+
     .trophy-badge {
       font-size: 2.6rem;
       line-height: 1;
@@ -537,7 +620,7 @@
   <section id="home-screen">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.1.7</h1>
+      <h1 class="home-title">CARROM STUDIO 0.1.8</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
@@ -568,15 +651,16 @@
     <div class="scoreboard">
       <div class="player-box" id="p1-box">
         <span class="p-label" id="p1-name">White (You)</span>
-        <span class="p-score" id="p1-score">0</span>
+        <div class="coin-tray" id="p1-coins" title="Pocketed White Coins"></div>
       </div>
       <div class="center-status">
         <div class="turn-badge" id="turn-indicator">WHITE'S TURN</div>
+        <div class="timer-pill" id="turn-timer">⏱ 25s</div>
         <div class="queen-pill" id="queen-status">QUEEN: ON BOARD</div>
       </div>
       <div class="player-box right" id="p2-box">
         <span class="p-label" id="p2-name">Black (AI)</span>
-        <span class="p-score" id="p2-score">0</span>
+        <div class="coin-tray right" id="p2-coins" title="Pocketed Black Coins"></div>
       </div>
     </div>
 
@@ -758,6 +842,26 @@
           } catch (_) {}
         };
 
+        const queenPocket = () => {
+          if (muted) return;
+          try {
+            init();
+            [587.33, 739.99, 880, 1174.66].forEach((freq, idx) => {
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.type = "triangle";
+              const t0 = ctx.currentTime + idx * 0.065;
+              osc.frequency.setValueAtTime(freq, t0);
+              gain.gain.setValueAtTime(0.22, t0);
+              gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.26);
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.start(t0);
+              osc.stop(t0 + 0.28);
+            });
+          } catch (_) {}
+        };
+
         const fanfare = () => {
           if (muted) return;
           try {
@@ -784,7 +888,7 @@
           return muted;
         };
 
-        return { clack, pocket, fanfare, toggleMute };
+        return { clack, pocket, queenPocket, fanfare, toggleMute };
       })();
 
       // =========================================================
@@ -902,10 +1006,20 @@
           this.pocketRipples = [];
           this.sinkingPieces = [];
           this.shockwaves = [];
+          this.pocketSparks = [];
+          this.queenRings = [];
+
+          this.turnDurationSec = 25;
+          this.turnTimeLeft = 25;
+          this.turnTimerInterval = null;
+          this.aiTimeoutId = null;
+          this.paused = true;
+          this.sessionId = 0;
 
           this.pieces = [];
           this.striker = null;
           this.initMatch();
+          this.pauseGame();
           this.bindEvents();
           this.loop();
         }
@@ -916,77 +1030,153 @@
           off.height = BOARD_SIZE;
           const c = off.getContext("2d");
 
+          // Rich Rosewood Outer Frame with Bevel & Corner Brass Accents
           const frameGrad = c.createLinearGradient(0, 0, BOARD_SIZE, BOARD_SIZE);
-          frameGrad.addColorStop(0, "#3b2014");
-          frameGrad.addColorStop(0.5, "#26130b");
-          frameGrad.addColorStop(1, "#3a1e12");
+          frameGrad.addColorStop(0, "#4a2516");
+          frameGrad.addColorStop(0.5, "#241109");
+          frameGrad.addColorStop(1, "#3e1d10");
           c.fillStyle = frameGrad;
           c.fillRect(0, 0, BOARD_SIZE, BOARD_SIZE);
 
-          c.strokeStyle = "rgba(255, 215, 160, 0.16)";
-          c.lineWidth = 2;
-          c.strokeRect(FRAME_W - 1, FRAME_W - 1, BOARD_SIZE - (FRAME_W - 1) * 2, BOARD_SIZE - (FRAME_W - 1) * 2);
+          // Decorative Corner Brass Brackets
+          const corners = [
+            [0, 0], [BOARD_SIZE - 34, 0],
+            [0, BOARD_SIZE - 34], [BOARD_SIZE - 34, BOARD_SIZE - 34]
+          ];
+          corners.forEach(([bx, by]) => {
+            c.fillStyle = "rgba(217, 155, 67, 0.25)";
+            c.fillRect(bx, by, 34, 34);
+          });
 
-          const grad = c.createRadialGradient(300, 300, 35, 300, 300, 350);
-          grad.addColorStop(0, "#f8e4bc");
-          grad.addColorStop(0.7, "#ebd09c");
-          grad.addColorStop(1, "#d9b77c");
+          // Inner Frame Gold-Wood Trim
+          c.strokeStyle = "rgba(245, 198, 126, 0.35)";
+          c.lineWidth = 2.5;
+          c.strokeRect(FRAME_W - 2, FRAME_W - 2, BOARD_SIZE - (FRAME_W - 2) * 2, BOARD_SIZE - (FRAME_W - 2) * 2);
+
+          // Smooth Birch Plywood Playing Surface
+          const grad = c.createRadialGradient(300, 300, 25, 300, 300, 360);
+          grad.addColorStop(0, "#fbf0d4");
+          grad.addColorStop(0.65, "#edd3a1");
+          grad.addColorStop(1, "#d7b377");
           c.fillStyle = grad;
           c.fillRect(FRAME_W, FRAME_W, BOARD_SIZE - FRAME_W * 2, BOARD_SIZE - FRAME_W * 2);
 
-          c.strokeStyle = "rgba(120, 72, 28, 0.055)";
+          // Subtle Fine Wood Grain Lines
+          c.strokeStyle = "rgba(130, 78, 30, 0.045)";
           c.lineWidth = 1;
-          for (let y = FRAME_W; y < PLAY_MAX; y += 4) {
+          for (let y = FRAME_W; y < PLAY_MAX; y += 3) {
             c.beginPath();
             c.moveTo(FRAME_W, y);
             c.lineTo(PLAY_MAX, y);
             c.stroke();
           }
 
+          // Diagonal Foul Arrows pointing toward pockets
+          const drawArrow = (x1, y1, x2, y2) => {
+            c.strokeStyle = "rgba(30, 41, 59, 0.55)";
+            c.lineWidth = 1.4;
+            c.beginPath();
+            c.moveTo(x1, y1);
+            c.lineTo(x2, y2);
+            c.stroke();
+            const ang = Math.atan2(y2 - y1, x2 - x1);
+            c.beginPath();
+            c.moveTo(x2, y2);
+            c.lineTo(x2 - 8 * Math.cos(ang - 0.45), y2 - 8 * Math.sin(ang - 0.45));
+            c.moveTo(x2, y2);
+            c.lineTo(x2 - 8 * Math.cos(ang + 0.45), y2 - 8 * Math.sin(ang + 0.45));
+            c.stroke();
+          };
+          drawArrow(195, 195, 102, 102);
+          drawArrow(405, 195, 498, 102);
+          drawArrow(195, 405, 102, 498);
+          drawArrow(405, 405, 498, 498);
+
+          // Center Decorative Rosette & Circles
           c.strokeStyle = "#8b261d";
-          c.lineWidth = 2.2;
+          c.lineWidth = 2.4;
           c.beginPath();
-          c.arc(300, 300, 58, 0, Math.PI * 2);
+          c.arc(300, 300, 62, 0, Math.PI * 2);
           c.stroke();
 
-          c.strokeStyle = "rgba(139, 38, 29, 0.45)";
+          c.strokeStyle = "rgba(139, 38, 29, 0.5)";
           c.lineWidth = 1.2;
           c.beginPath();
-          c.arc(300, 300, 48, 0, Math.PI * 2);
+          c.arc(300, 300, 52, 0, Math.PI * 2);
           c.stroke();
+
+          // 12-petal center star motif
+          for (let i = 0; i < 12; i++) {
+            const a = (i * Math.PI) / 6;
+            c.beginPath();
+            c.moveTo(300 + Math.cos(a) * 15, 300 + Math.sin(a) * 15);
+            c.lineTo(300 + Math.cos(a + 0.14) * 36, 300 + Math.sin(a + 0.14) * 36);
+            c.lineTo(300 + Math.cos(a + 0.26) * 15, 300 + Math.sin(a + 0.26) * 15);
+            c.fillStyle = i % 2 === 0 ? "rgba(185, 28, 28, 0.25)" : "rgba(30, 41, 59, 0.18)";
+            c.fill();
+          }
 
           c.fillStyle = "#b91c1c";
           c.beginPath();
-          c.arc(300, 300, 14, 0, Math.PI * 2);
+          c.arc(300, 300, 14.5, 0, Math.PI * 2);
           c.fill();
+          c.strokeStyle = "#fef3c7";
+          c.lineWidth = 1.2;
+          c.stroke();
 
-          const drawBaseline = (x1, y1, x2, y2) => {
+          // Four Standard Baselines with Double Lines & End Circles
+          const drawBaseline = (x1, y1, x2, y2, horizontal) => {
             c.strokeStyle = "#1e293b";
             c.lineWidth = 1.6;
             c.beginPath();
             c.moveTo(x1, y1);
             c.lineTo(x2, y2);
             c.stroke();
+
+            c.strokeStyle = "rgba(30, 41, 59, 0.45)";
+            c.lineWidth = 1;
+            c.beginPath();
+            if (horizontal) {
+              const offset = y1 > 300 ? 11 : -11;
+              c.moveTo(x1, y1 + offset);
+              c.lineTo(x2, y2 + offset);
+            } else {
+              const offset = x1 > 300 ? 11 : -11;
+              c.moveTo(x1 + offset, y1);
+              c.lineTo(x2 + offset, y2);
+            }
+            c.stroke();
+
             [[x1, y1], [x2, y2]].forEach(([cx, cy]) => {
               c.fillStyle = "#dc2626";
               c.beginPath();
-              c.arc(cx, cy, 10.5, 0, Math.PI * 2);
+              c.arc(cx, cy, 11, 0, Math.PI * 2);
               c.fill();
               c.strokeStyle = "#fff";
-              c.lineWidth = 1.2;
+              c.lineWidth = 1.4;
               c.stroke();
+              c.fillStyle = "#1e293b";
+              c.beginPath();
+              c.arc(cx, cy, 3.2, 0, Math.PI * 2);
+              c.fill();
             });
           };
-          drawBaseline(155, 488, 445, 488);
-          drawBaseline(155, 112, 445, 112);
-          drawBaseline(112, 155, 112, 445);
-          drawBaseline(488, 155, 488, 445);
+          drawBaseline(155, 488, 445, 488, true);
+          drawBaseline(155, 112, 445, 112, true);
+          drawBaseline(112, 155, 112, 445, false);
+          drawBaseline(488, 155, 488, 445, false);
 
+          // Recessed Corner Pockets with Leather Rim Shadow
           POCKETS.forEach((p) => {
-            const pGrad = c.createRadialGradient(p.x - 3, p.y - 3, 4, p.x, p.y, POCKET_R);
-            pGrad.addColorStop(0, "#05070a");
-            pGrad.addColorStop(0.85, "#11161f");
-            pGrad.addColorStop(1, "#2b1810");
+            c.beginPath();
+            c.arc(p.x, p.y, POCKET_R + 3, 0, Math.PI * 2);
+            c.fillStyle = "rgba(62, 32, 16, 0.45)";
+            c.fill();
+
+            const pGrad = c.createRadialGradient(p.x - 3, p.y - 3, 3, p.x, p.y, POCKET_R);
+            pGrad.addColorStop(0, "#030508");
+            pGrad.addColorStop(0.82, "#0f141d");
+            pGrad.addColorStop(1, "#2c1810");
             c.fillStyle = pGrad;
             c.beginPath();
             c.arc(p.x, p.y, POCKET_R, 0, Math.PI * 2);
@@ -997,16 +1187,31 @@
         }
 
         initMatch() {
-          this.scores = { white: 0, black: 0 };
+          this.sessionId += 1;
+          this.paused = false;
+          if (this.aiTimeoutId) {
+            clearTimeout(this.aiTimeoutId);
+            this.aiTimeoutId = null;
+          }
+          this.pocketedCounts = { white: 0, black: 0 };
+          this.penaltyDue = { white: 0, black: 0 };
+          this.queenOwner = null;
           this.turn = "white";
           this.queenState = "board";
           this.queenPendingGrace = false;
           this.roundEndedNoWinner = false;
           this.matchOver = false;
+          this.isMoving = false;
+          this.isAiming = false;
+          this.aimVec = { x: 0, y: 0 };
+          this.remoteAim = null;
           this.pocketRipples = [];
           this.sinkingPieces = [];
           this.shockwaves = [];
+          this.pocketSparks = [];
+          this.queenRings = [];
           this.pieces = [];
+          document.querySelectorAll(".flying-coin-dom").forEach((el) => el.remove());
 
           this.pieces.push({ x: 300, y: 300, vx: 0, vy: 0, r: COIN_R, type: "queen", active: true });
 
@@ -1046,8 +1251,127 @@
           this.updateHUD();
         }
 
+        stopTurnTimer() {
+          if (this.turnTimerInterval) {
+            clearInterval(this.turnTimerInterval);
+            this.turnTimerInterval = null;
+          }
+        }
+
+        pauseGame() {
+          this.paused = true;
+          this.sessionId += 1;
+          this.stopTurnTimer();
+          if (this.aiTimeoutId) {
+            clearTimeout(this.aiTimeoutId);
+            this.aiTimeoutId = null;
+          }
+          this.isMoving = false;
+          this.isAiming = false;
+          this.aimVec = { x: 0, y: 0 };
+          this.remoteAim = null;
+          this.pocketRipples = [];
+          this.sinkingPieces = [];
+          this.shockwaves = [];
+          this.pocketSparks = [];
+          this.queenRings = [];
+          if (this.striker) {
+            this.striker.vx = 0;
+            this.striker.vy = 0;
+          }
+          this.pieces.forEach((p) => {
+            p.vx = 0;
+            p.vy = 0;
+          });
+          document.querySelectorAll(".flying-coin-dom").forEach((el) => el.remove());
+          const powerFill = document.getElementById("power-fill");
+          if (powerFill) powerFill.style.width = "0%";
+          const timerEl = document.getElementById("turn-timer");
+          if (timerEl) {
+            timerEl.textContent = "⏱ --";
+            timerEl.classList.remove("urgent");
+          }
+        }
+
+        startTurnTimer() {
+          this.stopTurnTimer();
+          const timerEl = document.getElementById("turn-timer");
+          if (this.paused || this.matchOver || this.roundEndedNoWinner || this.isMoving) {
+            if (timerEl) timerEl.textContent = "⏱ --";
+            return;
+          }
+
+          this.turnTimeLeft = this.turnDurationSec;
+          this.renderTurnTimerUI();
+
+          this.turnTimerInterval = setInterval(() => {
+            if (this.paused || this.matchOver || this.roundEndedNoWinner || this.isMoving) {
+              this.stopTurnTimer();
+              return;
+            }
+            this.turnTimeLeft = Math.max(0, this.turnTimeLeft - 1);
+            this.renderTurnTimerUI();
+
+            if (this.turnTimeLeft <= 0) {
+              this.stopTurnTimer();
+              this.handleTurnTimeout();
+            }
+          }, 1000);
+        }
+
+        renderTurnTimerUI() {
+          const timerEl = document.getElementById("turn-timer");
+          if (!timerEl) return;
+          timerEl.textContent = `⏱ ${this.turnTimeLeft}s`;
+          if (this.turnTimeLeft <= 7) {
+            timerEl.classList.add("urgent");
+          } else {
+            timerEl.classList.remove("urgent");
+          }
+        }
+
+        handleTurnTimeout() {
+          if (this.isMoving || this.matchOver || this.roundEndedNoWinner) return;
+          // In Online mode, Host is authoritative for turn switching so both clients stay synced
+          if (this.mode === "ONLINE" && this.onlineRole !== "HOST") return;
+
+          this.isAiming = false;
+          this.aimVec = { x: 0, y: 0 };
+          this.remoteAim = null;
+          document.getElementById("power-fill").style.width = "0%";
+
+          const timedOutPlayer = this.turn;
+          if (
+            (this.queenState === "pending_white" && timedOutPlayer === "white") ||
+            (this.queenState === "pending_black" && timedOutPlayer === "black")
+          ) {
+            this.returnQueenToCenter();
+          }
+
+          this.turn = timedOutPlayer === "white" ? "black" : "white";
+          this.resetStrikerPosition(true);
+
+          if (this.mode === "ONLINE" && this.onlineRole === "HOST") {
+            this.broadcastState({
+              type: "TURN_SYNC",
+              turn: this.turn,
+              pocketedCounts: this.pocketedCounts,
+              queenState: this.queenState,
+              queenOwner: this.queenOwner,
+              pieces: this.pieces.map((p) => ({ x: p.x, y: p.y, active: p.active }))
+            });
+          }
+        }
+
         resetStrikerPosition(triggerAI = true) {
-          if (this.matchOver || this.roundEndedNoWinner) return;
+          if (this.paused || this.matchOver || this.roundEndedNoWinner) {
+            this.stopTurnTimer();
+            return;
+          }
+          if (this.aiTimeoutId) {
+            clearTimeout(this.aiTimeoutId);
+            this.aiTimeoutId = null;
+          }
           this.isMoving = false;
           this.pocketedThisTurn = [];
           this.remoteAim = null;
@@ -1059,6 +1383,42 @@
           document.getElementById("striker-pos").value = 300;
           document.getElementById("power-fill").style.width = "0%";
           this.updateHUD();
+          this.startTurnTimer();
+
+          if (triggerAI && this.mode === "AI" && this.turn === "black") {
+            const currentSession = this.sessionId;
+            this.aiTimeoutId = setTimeout(() => {
+              this.aiTimeoutId = null;
+              if (
+                !this.paused &&
+                this.sessionId === currentSession &&
+                this.mode === "AI" &&
+                this.turn === "black" &&
+                !this.isMoving &&
+                !this.matchOver
+              ) {
+                this.executeAITurn();
+              }
+            }, 680);
+          }
+        }
+
+        executeAITurn() {
+          if (this.paused || this.mode !== "AI" || this.turn !== "black" || this.isMoving || this.matchOver || this.roundEndedNoWinner) {
+            return;
+          }
+          this.isMoving = false;
+          this.pocketedThisTurn = [];
+          this.remoteAim = null;
+          this.striker.active = true;
+          this.striker.vx = 0;
+          this.striker.vy = 0;
+          this.striker.x = 300;
+          this.striker.y = this.turn === "white" ? 488 : 112;
+          document.getElementById("striker-pos").value = 300;
+          document.getElementById("power-fill").style.width = "0%";
+          this.updateHUD();
+          this.startTurnTimer();
 
           if (triggerAI && this.mode === "AI" && this.turn === "black") {
             setTimeout(() => {
@@ -1069,8 +1429,93 @@
           }
         }
 
+        executeAITurn() {
+          if (this.mode !== "AI" || this.turn !== "black" || this.isMoving || this.matchOver || this.roundEndedNoWinner) {
+            return;
+          }
+
+          const baselineY = 112;
+          const queen = this.pieces.find((p) => p.active && p.type === "queen");
+          const blackCoins = this.pieces.filter((p) => p.active && p.type === "black");
+          const canPotQueen = queen && this.queenState === "board" && blackCoins.length > 1;
+
+          const targets = [];
+          if (canPotQueen) targets.push({ piece: queen, bonus: 35 });
+          blackCoins.forEach((c) => targets.push({ piece: c, bonus: this.queenState === "pending_black" ? 45 : 15 }));
+
+          if (targets.length === 0) return;
+
+          let bestShot = null;
+          let bestScore = -Infinity;
+
+          for (const item of targets) {
+            const target = item.piece;
+            for (const pocket of POCKETS) {
+              const toPocketX = pocket.x - target.x;
+              const toPocketY = pocket.y - target.y;
+              const distToPocket = Math.hypot(toPocketX, toPocketY);
+              if (distToPocket < 1) continue;
+
+              const dirX = toPocketX / distToPocket;
+              const dirY = toPocketY / distToPocket;
+              const ghostX = target.x - dirX * (target.r + this.striker.r - 1);
+              const ghostY = target.y - dirY * (target.r + this.striker.r - 1);
+
+              // Sample candidate striker X positions along Black's baseline (155..445)
+              for (let sx = 160; sx <= 440; sx += 20) {
+                const shotX = ghostX - sx;
+                const shotY = ghostY - baselineY;
+                const distToGhost = Math.hypot(shotX, shotY);
+                if (distToGhost < 1) continue;
+
+                const sDirX = shotX / distToGhost;
+                const sDirY = shotY / distToGhost;
+                const alignment = sDirX * dirX + sDirY * dirY;
+                if (alignment <= 0.18) continue;
+
+                // Penalize obstructed paths
+                let blockedPenalty = 0;
+                for (const other of this.pieces) {
+                  if (!other.active || other === target) continue;
+                  const proj = (other.x - sx) * sDirX + (other.y - baselineY) * sDirY;
+                  if (proj > 0 && proj < distToGhost) {
+                    const perp = Math.hypot(other.x - (sx + sDirX * proj), other.y - (baselineY + sDirY * proj));
+                    if (perp < other.r + this.striker.r + 2) {
+                      blockedPenalty += 55;
+                    }
+                  }
+                }
+
+                const score = alignment * 100 - distToPocket * 0.12 - distToGhost * 0.08 + item.bonus - blockedPenalty;
+                if (score > bestScore) {
+                  bestScore = score;
+                  const speed = Math.min(34, Math.max(17, (distToGhost + distToPocket) * 0.048));
+                  bestShot = {
+                    sx,
+                    vx: sDirX * speed,
+                    vy: sDirY * speed
+                  };
+                }
+              }
+            }
+          }
+
+          if (!bestShot) {
+            const fallback = targets[0].piece;
+            const sx = Math.max(160, Math.min(440, fallback.x));
+            const dx = fallback.x - sx;
+            const dy = fallback.y - baselineY;
+            const mag = Math.hypot(dx, dy) || 1;
+            bestShot = { sx, vx: (dx / mag) * 24, vy: (dy / mag) * 24 };
+          }
+
+          this.striker.x = bestShot.sx;
+          document.getElementById("striker-pos").value = bestShot.sx;
+          this.launchStriker(bestShot.sx, bestShot.vx, bestShot.vy, false);
+        }
+
         isLocalTurn() {
-          if (this.isMoving || this.matchOver || this.roundEndedNoWinner) return false;
+          if (this.paused || this.isMoving || this.matchOver || this.roundEndedNoWinner) return false;
           if (this.mode === "PVP") return true;
           if (this.mode === "AI") return this.turn === "white";
           if (this.mode === "ONLINE") {
@@ -1176,6 +1621,7 @@
         }
 
         launchStriker(x, vx, vy, broadcast = false) {
+          this.stopTurnTimer();
           this.striker.x = x;
           this.striker.y = this.turn === "white" ? 488 : 112;
           this.striker.vx = vx;
@@ -1197,49 +1643,146 @@
             });
           }
         }
+        animateCoinToTray(pocketX, pocketY, pieceType) {
+          if (pieceType === "striker") return;
+          const rect = this.canvas.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
 
-        executeAITurn() {
-          if (this.turn !== "black" || this.mode !== "AI" || this.matchOver || this.roundEndedNoWinner) return;
-          const needsCover = this.queenState === "pending_black";
-          const targets = this.pieces.filter((p) => {
-            if (!p.active) return false;
-            if (needsCover) return p.type === "black";
-            return p.type === "black" || p.type === "queen";
+          let lx = pocketX;
+          let ly = pocketY;
+          if (this.shouldFlipPerspective()) {
+            lx = BOARD_SIZE - lx;
+            ly = BOARD_SIZE - ly;
+          }
+
+          const startX = rect.left + (lx / BOARD_SIZE) * rect.width;
+          const startY = rect.top + (ly / BOARD_SIZE) * rect.height;
+
+          let targetEl = null;
+          if (pieceType === "white") {
+            const dots = document.querySelectorAll("#p1-coins .coin-dot:not(.queen-dot)");
+            const idx = Math.min(8, this.pieces.filter((p) => !p.active && p.type === "white").length - 1);
+            targetEl = dots[Math.max(0, idx)] || document.getElementById("p1-coins");
+          } else if (pieceType === "black") {
+            const dots = document.querySelectorAll("#p2-coins .coin-dot:not(.queen-dot)");
+            const idx = Math.min(8, this.pieces.filter((p) => !p.active && p.type === "black").length - 1);
+            targetEl = dots[Math.max(0, idx)] || document.getElementById("p2-coins");
+          } else if (pieceType === "queen") {
+            targetEl = this.turn === "black"
+              ? document.querySelector("#p2-coins .queen-dot")
+              : document.querySelector("#p1-coins .queen-dot");
+          }
+
+          if (!targetEl) return;
+          const tRect = targetEl.getBoundingClientRect();
+          const endX = tRect.left + tRect.width / 2;
+          const endY = tRect.top + tRect.height / 2;
+
+          const flyer = document.createElement("div");
+          flyer.className = "flying-coin-dom";
+          flyer.style.left = `${startX}px`;
+          flyer.style.top = `${startY}px`;
+
+          if (pieceType === "white") {
+            flyer.style.background = "radial-gradient(circle at 35% 35%, #ffffff, #cbd5e1)";
+            flyer.style.boxShadow = "0 0 12px rgba(255,255,255,0.85)";
+          } else if (pieceType === "black") {
+            flyer.style.background = "radial-gradient(circle at 35% 35%, #64748b, #0f172a)";
+            flyer.style.border = "1.5px solid #f59e0b";
+            flyer.style.boxShadow = "0 0 12px rgba(245,158,11,0.8)";
+          } else {
+            flyer.style.width = "22px";
+            flyer.style.height = "22px";
+            flyer.style.background = "radial-gradient(circle at 35% 35%, #fda4af, #e11d48)";
+            flyer.style.border = "1.5px solid #fef08a";
+            flyer.style.boxShadow = "0 0 18px rgba(244,63,94,0.95)";
+          }
+
+          document.body.appendChild(flyer);
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              flyer.style.left = `${endX}px`;
+              flyer.style.top = `${endY}px`;
+              flyer.style.transform = "translate(-50%, -50%) scale(0.72)";
+            });
           });
-          if (!targets.length) return;
-          const target = targets[Math.floor(Math.random() * targets.length)];
-          const strikerX = Math.max(165, Math.min(435, target.x + (Math.random() * 44 - 22)));
-          const angle = Math.atan2(target.y - 112, target.x - strikerX);
-          const power = 24 + Math.random() * 6;
-          this.launchStriker(strikerX, Math.cos(angle) * power, Math.sin(angle) * power, false);
+
+          setTimeout(() => {
+            flyer.style.opacity = "0";
+            this.updateHUD();
+            setTimeout(() => flyer.remove(), 220);
+          }, 680);
         }
 
         spawnPocketFX(x, y, piece) {
-          this.pocketRipples.push({ x, y, r: POCKET_R * 0.6, alpha: 0.9 });
+          this.pocketRipples.push({ x, y, r: POCKET_R * 0.55, alpha: 0.95 });
           if (piece.type !== "striker") {
+            const isQueen = piece.type === "queen";
             this.sinkingPieces.push({
-              x, y, r: piece.r, type: piece.type, scale: 1, alpha: 1
+              x: piece.x,
+              y: piece.y,
+              targetX: x,
+              targetY: y,
+              r: piece.r,
+              type: piece.type,
+              scale: 1,
+              alpha: 1,
+              angle: 0
             });
+
+            if (isQueen) {
+              // Special royal shockwave & golden-crimson burst for the Red Queen
+              this.queenRings.push({ x, y, r: 10, alpha: 1, color: "rgba(244, 63, 94, " });
+              this.queenRings.push({ x, y, r: 22, alpha: 0.9, color: "rgba(250, 204, 21, " });
+              for (let i = 0; i < 26; i++) {
+                const a = (Math.PI * 2 * i) / 26 + Math.random() * 0.15;
+                const spd = 2.0 + Math.random() * 3.4;
+                this.pocketSparks.push({
+                  x,
+                  y,
+                  vx: Math.cos(a) * spd,
+                  vy: Math.sin(a) * spd,
+                  alpha: 1,
+                  size: 3.1,
+                  color: i % 2 === 0 ? "#fb7185" : "#fde047"
+                });
+              }
+            } else {
+              const sparkColor = piece.type === "white" ? "#ffffff" : "#f59e0b";
+              for (let i = 0; i < 12; i++) {
+                const a = (Math.PI * 2 * i) / 12 + Math.random() * 0.25;
+                const spd = 1.4 + Math.random() * 2.2;
+                this.pocketSparks.push({
+                  x,
+                  y,
+                  vx: Math.cos(a) * spd,
+                  vy: Math.sin(a) * spd,
+                  alpha: 1,
+                  size: 2.2,
+                  color: sparkColor
+                });
+              }
+            }
+
+            this.animateCoinToTray(x, y, piece.type);
           }
         }
 
-        returnQueenToCenter() {
-          const queen = this.pieces.find((p) => p.type === "queen");
-          if (!queen) return;
-          queen.active = true;
-          queen.vx = 0;
-          queen.vy = 0;
+        placePieceAtCenter(piece) {
+          if (!piece) return;
+          piece.active = true;
+          piece.vx = 0;
+          piece.vy = 0;
 
-          // Find nearest free spot around center (300, 300)
-          const occupied = this.pieces.filter((p) => p.active && p !== queen);
+          const occupied = this.pieces.filter((p) => p.active && p !== piece);
           let placedX = 300;
           let placedY = 300;
-          const isFree = (cx, cy) => occupied.every((o) => Math.hypot(o.x - cx, o.y - cy) >= queen.r + o.r + 1);
+          const isFree = (cx, cy) => occupied.every((o) => Math.hypot(o.x - cx, o.y - cy) >= piece.r + o.r + 1);
 
           if (!isFree(placedX, placedY)) {
             let found = false;
-            for (let radius = 8; radius <= 70 && !found; radius += 6) {
-              for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+            for (let radius = 8; radius <= 80 && !found; radius += 5) {
+              for (let a = 0; a < Math.PI * 2; a += Math.PI / 10) {
                 const tx = 300 + Math.cos(a) * radius;
                 const ty = 300 + Math.sin(a) * radius;
                 if (isFree(tx, ty)) {
@@ -1252,13 +1795,29 @@
             }
           }
 
-          queen.x = placedX;
-          queen.y = placedY;
+          piece.x = placedX;
+          piece.y = placedY;
+        }
+
+        returnQueenToCenter() {
+          const queen = this.pieces.find((p) => p.type === "queen");
+          this.placePieceAtCenter(queen);
           this.queenState = "board";
+          this.queenOwner = null;
           this.queenPendingGrace = false;
         }
 
+        returnCoinToCenter(color) {
+          const inactiveCoin = this.pieces.find((p) => !p.active && p.type === color);
+          if (inactiveCoin) {
+            this.placePieceAtCenter(inactiveCoin);
+            return true;
+          }
+          return false;
+        }
+
         stepPhysics() {
+          if (this.paused) return;
           for (let i = this.pocketRipples.length - 1; i >= 0; i--) {
             const rp = this.pocketRipples[i];
             rp.r += 1.4;
@@ -1267,9 +1826,25 @@
           }
           for (let i = this.sinkingPieces.length - 1; i >= 0; i--) {
             const sp = this.sinkingPieces[i];
-            sp.scale -= 0.08;
-            sp.alpha -= 0.09;
+            sp.x += (sp.targetX - sp.x) * 0.24;
+            sp.y += (sp.targetY - sp.y) * 0.24;
+            sp.angle += 0.28;
+            sp.scale -= 0.065;
+            sp.alpha -= 0.07;
             if (sp.scale <= 0.1 || sp.alpha <= 0) this.sinkingPieces.splice(i, 1);
+          }
+          for (let i = this.pocketSparks.length - 1; i >= 0; i--) {
+            const pk = this.pocketSparks[i];
+            pk.x += pk.vx;
+            pk.y += pk.vy;
+            pk.alpha -= 0.04;
+            if (pk.alpha <= 0) this.pocketSparks.splice(i, 1);
+          }
+          for (let i = this.queenRings.length - 1; i >= 0; i--) {
+            const qr = this.queenRings[i];
+            qr.r += 2.6;
+            qr.alpha -= 0.028;
+            if (qr.alpha <= 0) this.queenRings.splice(i, 1);
           }
           for (let i = this.shockwaves.length - 1; i >= 0; i--) {
             const sw = this.shockwaves[i];
@@ -1342,7 +1917,11 @@
                 b.vy = 0;
                 this.pocketedThisTurn.push(b.type);
                 this.spawnPocketFX(p.x, p.y, b);
-                AudioFX.pocket();
+                if (b.type === "queen") {
+                  AudioFX.queenPocket();
+                } else {
+                  AudioFX.pocket();
+                }
               }
             });
           });
@@ -1363,63 +1942,81 @@
           const oppCoins = this.pocketedThisTurn.filter((t) => t === oppColor).length;
           const queenPocketedNow = this.pocketedThisTurn.includes("queen");
 
-          // Standard coin scoring
-          if (myCoins > 0) {
-            this.scores[activeShooter] += myCoins * 10;
+          // Standard ICF Rule 1: Striker Foul Penalty (Due / Return 1 of shooter's pocketed coins to center)
+          if (strikerFoul) {
+            this.penaltyDue[activeShooter] += 1;
+            keepTurn = false;
+          } else if (myCoins > 0) {
             keepTurn = true;
           }
-          if (oppCoins > 0) {
-            this.scores[oppColor] += oppCoins * 10;
-          }
-          if (strikerFoul) {
-            this.scores[activeShooter] = Math.max(0, this.scores[activeShooter] - 10);
-            keepTurn = false;
-          }
 
-          // Red Queen Cover Rules:
-          // 1) If Queen is pocketed now:
-          //    - If striker fouled or opponent coin pocketed with foul, return Queen to center.
-          //    - If shooter also pocketed their own coin in the same shot (and no striker foul), Queen is immediately covered (+30).
-          //    - Otherwise Queen becomes pending for shooter's next shot (1 grace shot).
+          // Standard ICF Rule 2: Red Queen Cover Rules
           if (queenPocketedNow) {
             if (strikerFoul) {
+              // Queen pocketed with striker foul -> Queen immediately returns to center
               this.returnQueenToCenter();
             } else if (myCoins > 0) {
+              // Queen pocketed along with shooter's own coin in the same shot -> Covered immediately
               this.queenState = "covered";
+              this.queenOwner = activeShooter;
               this.queenPendingGrace = false;
-              this.scores[activeShooter] += 30;
               keepTurn = true;
             } else {
+              // Queen pocketed alone -> Must be covered on shooter's immediate next shot
               this.queenState = activeShooter === "white" ? "pending_white" : "pending_black";
               this.queenPendingGrace = true;
-              keepTurn = true; // Shooter gets follow-up shot to cover Queen
+              keepTurn = true;
             }
           } else if (
             (this.queenState === "pending_white" && activeShooter === "white") ||
             (this.queenState === "pending_black" && activeShooter === "black")
           ) {
-            // Shooter is attempting to cover Queen on this shot
+            // Grace shot to cover the Queen
             if (!strikerFoul && myCoins > 0) {
               this.queenState = "covered";
+              this.queenOwner = activeShooter;
               this.queenPendingGrace = false;
-              this.scores[activeShooter] += 30;
               keepTurn = true;
             } else {
-              // Failed to cover Queen -> return Queen to center & pass turn
+              // Failed to cover Queen -> Queen returns to center
               this.returnQueenToCenter();
               keepTurn = false;
             }
           }
 
-          const nextTurn = keepTurn ? activeShooter : oppColor;
+          // Settle any pending penalty pieces back onto the center of the board
+          ["white", "black"].forEach((color) => {
+            while (this.penaltyDue[color] > 0) {
+              const returned = this.returnCoinToCenter(color);
+              if (returned) {
+                this.penaltyDue[color] -= 1;
+              } else {
+                break; // Keep due until player pockets a coin
+              }
+            }
+          });
 
-          // Check Match Victory Condition (all white or all black coins cleared, and Queen not pending cover)
-          const remainingWhite = this.pieces.filter((p) => p.active && p.type === "white").length;
-          const remainingBlack = this.pieces.filter((p) => p.active && p.type === "black").length;
+          // Standard ICF Rule 3: Cannot win the board while Queen is still on the board or pending cover
+          let remainingWhite = this.pieces.filter((p) => p.active && p.type === "white").length;
+          let remainingBlack = this.pieces.filter((p) => p.active && p.type === "black").length;
 
-          if (this.queenState.startsWith("pending_") && (remainingWhite === 0 || remainingBlack === 0)) {
-            this.returnQueenToCenter();
+          if (remainingWhite === 0 && (this.queenState === "board" || this.queenState.startsWith("pending_"))) {
+            if (this.queenState.startsWith("pending_")) this.returnQueenToCenter();
+            this.returnCoinToCenter("white");
+            remainingWhite = this.pieces.filter((p) => p.active && p.type === "white").length;
+            keepTurn = false;
           }
+          if (remainingBlack === 0 && (this.queenState === "board" || this.queenState.startsWith("pending_"))) {
+            if (this.queenState.startsWith("pending_")) this.returnQueenToCenter();
+            this.returnCoinToCenter("black");
+            remainingBlack = this.pieces.filter((p) => p.active && p.type === "black").length;
+            keepTurn = false;
+          }
+
+          this.pocketedCounts.white = 9 - remainingWhite;
+          this.pocketedCounts.black = 9 - remainingBlack;
+
+          const nextTurn = keepTurn ? activeShooter : oppColor;
 
           const winner =
             remainingWhite === 0 ? "white" :
@@ -1427,18 +2024,20 @@
 
           if (winner) {
             this.matchOver = true;
+            this.stopTurnTimer();
             if (this.mode === "ONLINE" && this.onlineRole === "HOST") {
               this.broadcastState({
                 type: "MATCH_WIN",
                 winner,
-                scores: this.scores,
+                pocketedCounts: this.pocketedCounts,
                 queenState: this.queenState,
+                queenOwner: this.queenOwner,
                 pieces: this.pieces.map((p) => ({ x: p.x, y: p.y, active: p.active }))
               });
             }
             this.updateHUD();
             if (this.callbacks.onMatchWin) {
-              this.callbacks.onMatchWin(winner, this.scores);
+              this.callbacks.onMatchWin(winner, this.pocketedCounts, this.queenOwner);
             }
             return;
           }
@@ -1449,8 +2048,9 @@
             this.broadcastState({
               type: "TURN_SYNC",
               turn: this.turn,
-              scores: this.scores,
+              pocketedCounts: this.pocketedCounts,
               queenState: this.queenState,
+              queenOwner: this.queenOwner,
               pieces: this.pieces.map((p) => ({ x: p.x, y: p.y, active: p.active }))
             });
           } else if (this.mode !== "ONLINE") {
@@ -1463,8 +2063,26 @@
         }
 
         updateHUD() {
-          document.getElementById("p1-score").textContent = this.scores.white;
-          document.getElementById("p2-score").textContent = this.scores.black;
+          const remainingWhite = this.pieces.filter((p) => p.active && p.type === "white").length;
+          const remainingBlack = this.pieces.filter((p) => p.active && p.type === "black").length;
+          this.pocketedCounts.white = 9 - remainingWhite;
+          this.pocketedCounts.black = 9 - remainingBlack;
+
+          const p1Tray = document.getElementById("p1-coins");
+          const p2Tray = document.getElementById("p2-coins");
+
+          p1Tray.innerHTML = Array.from({ length: 9 }, (_, i) => {
+            const filled = i < this.pocketedCounts.white ? "filled-white" : "";
+            return `<span class="coin-dot ${filled}"></span>`;
+          }).join("") +
+          `<span class="coin-dot queen-dot ${this.queenState === "covered" && this.queenOwner === "white" ? "filled-queen" : ""}" title="Red Queen"></span>`;
+
+          p2Tray.innerHTML =
+            `<span class="coin-dot queen-dot ${this.queenState === "covered" && this.queenOwner === "black" ? "filled-queen" : ""}" title="Red Queen"></span>` +
+            Array.from({ length: 9 }, (_, i) => {
+              const filled = i < this.pocketedCounts.black ? "filled-black" : "";
+              return `<span class="coin-dot ${filled}"></span>`;
+            }).join("");
 
           const badge = document.getElementById("turn-indicator");
           const p1Box = document.getElementById("p1-box");
@@ -1490,7 +2108,7 @@
           } else if (this.queenState === "pending_black") {
             qPill.textContent = "QUEEN: BLACK COVER NEEDED";
           } else {
-            qPill.textContent = "QUEEN: COVERED (+30)";
+            qPill.textContent = `QUEEN: COVERED (${(this.queenOwner || "").toUpperCase()})`;
           }
         }
 
@@ -1498,27 +2116,32 @@
           ctx.save();
           ctx.globalAlpha = alpha;
 
+          // Ground Drop Shadow
           ctx.beginPath();
-          ctx.arc(x + 2, y + 3, r, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+          ctx.arc(x + 2.2, y + 3.2, r, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(0, 0, 0, 0.38)";
           ctx.fill();
 
-          const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.15, x, y, r);
+          const grad = ctx.createRadialGradient(x - r * 0.32, y - r * 0.32, r * 0.12, x, y, r);
           if (type === "white") {
             grad.addColorStop(0, "#ffffff");
-            grad.addColorStop(0.75, "#e2e8f0");
+            grad.addColorStop(0.65, "#f1f5f9");
+            grad.addColorStop(0.9, "#cbd5e1");
             grad.addColorStop(1, "#94a3b8");
           } else if (type === "black") {
             grad.addColorStop(0, "#475569");
-            grad.addColorStop(0.7, "#1e293b");
-            grad.addColorStop(1, "#090d16");
+            grad.addColorStop(0.55, "#1e293b");
+            grad.addColorStop(0.9, "#0f172a");
+            grad.addColorStop(1, "#020617");
           } else if (type === "queen") {
-            grad.addColorStop(0, "#fb7185");
-            grad.addColorStop(0.65, "#dc2626");
-            grad.addColorStop(1, "#7f1d1d");
+            grad.addColorStop(0, "#fda4af");
+            grad.addColorStop(0.45, "#e11d48");
+            grad.addColorStop(0.88, "#9f1239");
+            grad.addColorStop(1, "#4c0519");
           } else {
-            grad.addColorStop(0, "#67e8f9");
-            grad.addColorStop(0.65, "#06b6d4");
+            grad.addColorStop(0, "#a5f3fc");
+            grad.addColorStop(0.5, "#06b6d4");
+            grad.addColorStop(0.88, "#0e7490");
             grad.addColorStop(1, "#164e63");
           }
 
@@ -1527,11 +2150,29 @@
           ctx.fillStyle = grad;
           ctx.fill();
 
-          ctx.beginPath();
-          ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
-          ctx.strokeStyle = type === "striker" ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.22)";
-          ctx.lineWidth = 1.4;
+          // Outer Rim Bevel
+          ctx.strokeStyle = type === "white" ? "rgba(148, 163, 184, 0.6)" : "rgba(255, 255, 255, 0.25)";
+          ctx.lineWidth = 1.2;
           ctx.stroke();
+
+          // Carved Concentric Lathe Rings
+          ctx.beginPath();
+          ctx.arc(x, y, r * 0.66, 0, Math.PI * 2);
+          ctx.strokeStyle = type === "white" ? "rgba(100, 116, 139, 0.32)" : "rgba(255, 255, 255, 0.2)";
+          ctx.lineWidth = 1.1;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(x, y, r * 0.36, 0, Math.PI * 2);
+          ctx.strokeStyle = type === "queen" ? "rgba(254, 205, 211, 0.55)" : "rgba(255, 255, 255, 0.18)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Glossy Top-Left Specular Highlight
+          ctx.beginPath();
+          ctx.ellipse(x - r * 0.32, y - r * 0.32, r * 0.24, r * 0.14, -Math.PI / 4, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+          ctx.fill();
 
           ctx.restore();
         }
@@ -1567,7 +2208,32 @@
           });
 
           this.sinkingPieces.forEach((sp) => {
-            this.drawPieceDisk(ctx, sp.x, sp.y, sp.r * sp.scale, sp.type, sp.alpha);
+            ctx.save();
+            ctx.translate(sp.x, sp.y);
+            ctx.rotate(sp.angle);
+            ctx.scale(Math.max(0.1, sp.scale), Math.max(0.1, sp.scale));
+            this.drawPieceDisk(ctx, 0, 0, sp.r, sp.type, Math.max(0, sp.alpha));
+            ctx.restore();
+          });
+
+          this.queenRings.forEach((qr) => {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(qr.x, qr.y, qr.r, 0, Math.PI * 2);
+            ctx.strokeStyle = `${qr.color}${qr.alpha})`;
+            ctx.lineWidth = 3.2;
+            ctx.stroke();
+            ctx.restore();
+          });
+
+          this.pocketSparks.forEach((pk) => {
+            ctx.save();
+            ctx.globalAlpha = pk.alpha;
+            ctx.fillStyle = pk.color;
+            ctx.beginPath();
+            ctx.arc(pk.x, pk.y, pk.size || 2.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
           });
 
           const activeAim = this.isAiming ? this.aimVec : this.remoteAim;
@@ -1614,6 +2280,7 @@
         endRoundNoWinner(reason) {
           if (this.roundEndedNoWinner || this.matchOver) return;
           this.roundEndedNoWinner = true;
+          this.stopTurnTimer();
           this.isMoving = false;
           this.isAiming = false;
           if (this.callbacks.onRoundEndedNoWinner) {
@@ -1622,6 +2289,7 @@
         }
 
         async cleanupOnline() {
+          this.stopTurnTimer();
           this.stopVoiceChat();
           if (this.channel && supabase) {
             try {
@@ -1831,6 +2499,8 @@
 
         async connectRoom(code, role) {
           await this.cleanupOnline();
+          this.initMatch();
+          this.pauseGame();
           this.roomCode = code;
           this.onlineRole = role;
           this.mode = "ONLINE";
@@ -1856,8 +2526,9 @@
             } else if (payload.type === "MATCH_START" && this.onlineRole === "GUEST") {
               this.opponentJoined = true;
               this.turn = payload.turn || "white";
-              this.scores = payload.scores || { white: 0, black: 0 };
+              this.pocketedCounts = payload.pocketedCounts || { white: 0, black: 0 };
               this.queenState = payload.queenState || "board";
+              this.queenOwner = payload.queenOwner || null;
               if (Array.isArray(payload.pieces)) {
                 payload.pieces.forEach((ps, idx) => {
                   if (this.pieces[idx]) {
@@ -1881,8 +2552,9 @@
               if (typeof payload.y === "number") this.striker.y = payload.y;
             } else if (payload.type === "TURN_SYNC") {
               this.turn = payload.turn;
-              this.scores = payload.scores;
+              if (payload.pocketedCounts) this.pocketedCounts = payload.pocketedCounts;
               if (payload.queenState) this.queenState = payload.queenState;
+              this.queenOwner = payload.queenOwner || null;
               if (Array.isArray(payload.pieces)) {
                 payload.pieces.forEach((ps, idx) => {
                   if (this.pieces[idx]) {
@@ -1895,7 +2567,9 @@
               this.resetStrikerPosition(false);
             } else if (payload.type === "MATCH_WIN") {
               this.matchOver = true;
-              this.scores = payload.scores || this.scores;
+              if (payload.pocketedCounts) this.pocketedCounts = payload.pocketedCounts;
+              if (payload.queenState) this.queenState = payload.queenState;
+              this.queenOwner = payload.queenOwner || null;
               if (Array.isArray(payload.pieces)) {
                 payload.pieces.forEach((ps, idx) => {
                   if (this.pieces[idx]) {
@@ -1907,7 +2581,7 @@
               }
               this.updateHUD();
               if (this.callbacks.onMatchWin) {
-                this.callbacks.onMatchWin(payload.winner, this.scores);
+                this.callbacks.onMatchWin(payload.winner, this.pocketedCounts, this.queenOwner);
               }
             } else if (payload.type === "PLAYER_LEFT") {
               this.endRoundNoWinner("Opponent disconnected or went offline. Round ended with No Winner.");
@@ -2007,15 +2681,15 @@
         onRoundEndedNoWinner: (reason) => {
           openInfo("Game Ended Successfully", `${reason} Returning to Nexora Games Home.`, true);
         },
-        onMatchWin: (winner, scores) => {
+        onMatchWin: (winner, counts, queenOwner) => {
           AudioFX.fanfare();
           ConfettiFX.start();
           const winnerLabel = winner === "white" ? "WHITE CHAMPION!" : "BLACK CHAMPION!";
           document.getElementById("winner-heading").textContent = winnerLabel;
           document.getElementById("winner-subtitle").textContent =
-            `Graduated as Carrom Studio Champion with ${scores[winner]} points!`;
-          document.getElementById("final-white-score").textContent = scores.white;
-          document.getElementById("final-black-score").textContent = scores.black;
+            `Cleared all 9 coins${queenOwner === winner ? " + Covered Red Queen" : ""} under Standard ICF Rules!`;
+          document.getElementById("final-white-score").textContent = `${counts.white}/9${queenOwner === "white" ? " + 👑" : ""}`;
+          document.getElementById("final-black-score").textContent = `${counts.black}/9${queenOwner === "black" ? " + 👑" : ""}`;
           victoryModal.classList.add("open");
         }
       });
@@ -2047,6 +2721,7 @@
           game.initMatch();
         } else if (mode === "ONLINE") {
           setActiveBtn("btn-online");
+          game.pauseGame();
           onlineWarnModal.classList.add("open");
         }
       };
@@ -2062,6 +2737,7 @@
         if (game.mode === "ONLINE" && game.opponentJoined && !game.matchOver && !game.roundEndedNoWinner) {
           game.broadcastState({ type: "PLAYER_LEFT" });
         }
+        game.pauseGame();
         await game.cleanupOnline();
         homeScreen.classList.remove("hidden");
       };
@@ -2154,6 +2830,7 @@
 
       document.getElementById("btn-victory-home").onclick = async () => {
         closeVictory();
+        game.pauseGame();
         await game.cleanupOnline();
         homeScreen.classList.remove("hidden");
       };
