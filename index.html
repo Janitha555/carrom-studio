@@ -537,7 +537,7 @@
   <section id="home-screen">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.0.5</h1>
+      <h1 class="home-title">CARROM STUDIO 0.0.6</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
@@ -560,6 +560,7 @@
         <button id="btn-ai" class="active">vs AI</button>
         <button id="btn-pvp">Pass & Play</button>
         <button id="btn-online">Online</button>
+        <button id="btn-mic" title="Toggle Voice Chat">Mic: OFF</button>
         <button id="btn-sound" title="Toggle Sound">Sound: ON</button>
       </div>
     </header>
@@ -857,12 +858,12 @@
           this.roundEndedNoWinner = false;
           this.matchOver = false;
 
-          this.turn = "white";
-          this.scores = { white: 0, black: 0 };
-          // queenState: 'board' | 'pending_white' | 'pending_black' | 'covered'
-          this.queenState = "board";
-          this.queenPendingGrace = false;
-          this.pocketedThisTurn = [];
+          // WebRTC Voice Chat state for Online mode
+          this.localStream = null;
+          this.peerConn = null;
+          this.micEnabled = false;
+          this.remoteAudioEl = null;
+          this.pendingIceCandidates = [];
           this.isMoving = false;
           this.isAiming = false;
           this.aimVec = { x: 0, y: 0 };
@@ -1571,6 +1572,7 @@
         }
 
         async cleanupOnline() {
+          this.stopVoiceChat();
           if (this.channel && supabase) {
             try {
               await supabase.removeChannel(this.channel);
@@ -1584,6 +1586,146 @@
           this.opponentJoined = false;
           this.roomCode = null;
           this.onlineRole = null;
+        }
+
+        // =========================================================
+        // WEBRTC VOICE CHAT (MIC) OVER SUPABASE SIGNALING
+        // =========================================================
+        ensureRemoteAudio() {
+          if (!this.remoteAudioEl) {
+            const audio = document.createElement("audio");
+            audio.autoplay = true;
+            audio.playsInline = true;
+            document.body.appendChild(audio);
+            this.remoteAudioEl = audio;
+          }
+          return this.remoteAudioEl;
+        }
+
+        createPeerConnection() {
+          if (this.peerConn) return this.peerConn;
+          const pc = new RTCPeerConnection({
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+          });
+
+          if (this.localStream) {
+            this.localStream.getTracks().forEach((track) => {
+              pc.addTrack(track, this.localStream);
+            });
+          }
+
+          pc.ontrack = (event) => {
+            const audioEl = this.ensureRemoteAudio();
+            if (event.streams && event.streams[0]) {
+              audioEl.srcObject = event.streams[0];
+              audioEl.play().catch(() => {});
+            }
+          };
+
+          pc.onicecandidate = (event) => {
+            if (event.candidate) {
+              this.broadcastState({
+                type: "RTC_ICE",
+                candidate: event.candidate
+              });
+            }
+          };
+
+          this.peerConn = pc;
+          return pc;
+        }
+
+        async startOfferIfNeeded() {
+          if (this.mode !== "ONLINE" || !this.opponentJoined) return;
+          const pc = this.createPeerConnection();
+          if (this.onlineRole === "HOST") {
+            const offer = await pc.createOffer({ offerToReceiveAudio: true });
+            await pc.setLocalDescription(offer);
+            this.broadcastState({ type: "RTC_OFFER", offer });
+          } else {
+            this.broadcastState({ type: "RTC_READY" });
+          }
+        }
+
+        async handleSignaling(payload) {
+          if (!payload || this.mode !== "ONLINE") return;
+          if (payload.type === "RTC_READY" && this.onlineRole === "HOST") {
+            await this.startOfferIfNeeded();
+          } else if (payload.type === "RTC_OFFER") {
+            const pc = this.createPeerConnection();
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            this.broadcastState({ type: "RTC_ANSWER", answer });
+            for (const cand of this.pendingIceCandidates) {
+              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+            }
+            this.pendingIceCandidates = [];
+          } else if (payload.type === "RTC_ANSWER") {
+            const pc = this.createPeerConnection();
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+            for (const cand of this.pendingIceCandidates) {
+              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+            }
+            this.pendingIceCandidates = [];
+          } else if (payload.type === "RTC_ICE" && payload.candidate) {
+            const pc = this.createPeerConnection();
+            if (pc.remoteDescription) {
+              await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(() => {});
+            } else {
+              this.pendingIceCandidates.push(payload.candidate);
+            }
+          }
+        }
+
+        async toggleMic() {
+          if (this.mode !== "ONLINE") {
+            return { ok: false, message: "Voice Mic works in Online Multiplayer mode." };
+          }
+          if (!this.opponentJoined) {
+            return { ok: false, message: "Wait for your opponent to join the room first." };
+          }
+
+          if (!this.micEnabled) {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+              return { ok: false, message: "Microphone requires HTTPS or a supported browser." };
+            }
+            try {
+              this.localStream = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+                video: false
+              });
+              this.micEnabled = true;
+              const pc = this.createPeerConnection();
+              this.localStream.getTracks().forEach((track) => {
+                const alreadySending = pc.getSenders().some((s) => s.track === track);
+                if (!alreadySending) pc.addTrack(track, this.localStream);
+              });
+              await this.startOfferIfNeeded();
+              return { ok: true, enabled: true };
+            } catch (_) {
+              return { ok: false, message: "Microphone permission was denied or unavailable." };
+            }
+          } else {
+            this.stopVoiceChat();
+            return { ok: true, enabled: false };
+          }
+        }
+
+        stopVoiceChat() {
+          this.micEnabled = false;
+          if (this.localStream) {
+            this.localStream.getTracks().forEach((t) => t.stop());
+            this.localStream = null;
+          }
+          if (this.peerConn) {
+            try { this.peerConn.close(); } catch (_) {}
+            this.peerConn = null;
+          }
+          this.pendingIceCandidates = [];
+          if (this.remoteAudioEl) {
+            this.remoteAudioEl.srcObject = null;
+          }
         }
 
         async connectRoom(code, role) {
@@ -1668,6 +1810,13 @@
               }
             } else if (payload.type === "PLAYER_LEFT") {
               this.endRoundNoWinner("Opponent disconnected or went offline. Round ended with No Winner.");
+            } else if (
+              payload.type === "RTC_READY" ||
+              payload.type === "RTC_OFFER" ||
+              payload.type === "RTC_ANSWER" ||
+              payload.type === "RTC_ICE"
+            ) {
+              this.handleSignaling(payload).catch(() => {});
             }
           };
 
@@ -1770,7 +1919,7 @@
 
       const setActiveBtn = (id) => {
         document.querySelectorAll(".modes button").forEach((b) => {
-          if (b.id !== "btn-sound") b.classList.remove("active");
+          if (b.id !== "btn-sound" && b.id !== "btn-mic") b.classList.remove("active");
         });
         const target = document.getElementById(id);
         if (target) target.classList.add("active");
@@ -1817,6 +1966,23 @@
       document.getElementById("btn-ai").onclick = () => enterGameMode("AI");
       document.getElementById("btn-pvp").onclick = () => enterGameMode("PVP");
       document.getElementById("btn-online").onclick = () => enterGameMode("ONLINE");
+
+      document.getElementById("btn-mic").onclick = async (e) => {
+        const res = await game.toggleMic();
+        if (!res.ok) {
+          openInfo("Voice Chat Notice", res.message);
+          e.target.textContent = "Mic: OFF";
+          e.target.classList.remove("active");
+          return;
+        }
+        if (res.enabled) {
+          e.target.textContent = "Mic: ON";
+          e.target.classList.add("active");
+        } else {
+          e.target.textContent = "Mic: OFF";
+          e.target.classList.remove("active");
+        }
+      };
 
       document.getElementById("btn-sound").onclick = (e) => {
         const isMuted = AudioFX.toggleMute();
