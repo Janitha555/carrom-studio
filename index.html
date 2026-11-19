@@ -620,7 +620,7 @@
   <section id="home-screen">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.2.1</h1>
+      <h1 class="home-title">CARROM STUDIO 0.2.2</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
@@ -1373,10 +1373,11 @@
         }
 
         resetStrikerPosition(triggerAI = true) {
-          if (this.paused || this.matchOver || this.roundEndedNoWinner) {
+          if (this.matchOver || this.roundEndedNoWinner) {
             this.stopTurnTimer();
             return;
           }
+          this.paused = false;
           if (this.aiTimeoutId) {
             clearTimeout(this.aiTimeoutId);
             this.aiTimeoutId = null;
@@ -1612,6 +1613,7 @@
         }
 
         launchStriker(x, vx, vy, broadcast = false) {
+          this.paused = false;
           this.striker.x = x;
           this.striker.y = this.turn === "white" ? 488 : 112;
           this.striker.vx = vx;
@@ -1629,7 +1631,14 @@
               x: this.striker.x,
               y: this.striker.y,
               vx,
-              vy
+              vy,
+              pieces: this.pieces.map((p) => ({
+                x: p.x,
+                y: p.y,
+                vx: p.vx,
+                vy: p.vy,
+                active: p.active
+              }))
             });
           }
         }
@@ -2523,6 +2532,7 @@
                 this.callbacks.onMatchConnected("HOST");
               }
             } else if (payload.type === "MATCH_START" && this.onlineRole === "GUEST") {
+              this.paused = false;
               this.opponentJoined = true;
               this.matchOver = false;
               this.roundEndedNoWinner = false;
@@ -2535,6 +2545,8 @@
                   if (this.pieces[idx]) {
                     this.pieces[idx].x = ps.x;
                     this.pieces[idx].y = ps.y;
+                    this.pieces[idx].vx = 0;
+                    this.pieces[idx].vy = 0;
                     this.pieces[idx].active = ps.active;
                   }
                 });
@@ -2557,15 +2569,29 @@
                 });
               }
             } else if (payload.type === "SLIDE") {
+              this.paused = false;
               this.striker.x = payload.x;
               if (typeof payload.y === "number") this.striker.y = payload.y;
             } else if (payload.type === "AIM") {
               this.remoteAim = payload.vec;
             } else if (payload.type === "SHOOT") {
+              this.paused = false;
               if (payload.turn) this.turn = payload.turn;
+              if (Array.isArray(payload.pieces)) {
+                payload.pieces.forEach((ps, idx) => {
+                  if (this.pieces[idx]) {
+                    this.pieces[idx].x = ps.x;
+                    this.pieces[idx].y = ps.y;
+                    this.pieces[idx].vx = ps.vx || 0;
+                    this.pieces[idx].vy = ps.vy || 0;
+                    this.pieces[idx].active = ps.active;
+                  }
+                });
+              }
               this.launchStriker(payload.x, payload.vx, payload.vy, false);
               if (typeof payload.y === "number") this.striker.y = payload.y;
             } else if (payload.type === "TURN_SYNC") {
+              this.paused = false;
               this.turn = payload.turn;
               if (payload.pocketedCounts) this.pocketedCounts = payload.pocketedCounts;
               if (payload.queenState) this.queenState = payload.queenState;
@@ -2575,6 +2601,8 @@
                   if (this.pieces[idx]) {
                     this.pieces[idx].x = ps.x;
                     this.pieces[idx].y = ps.y;
+                    this.pieces[idx].vx = 0;
+                    this.pieces[idx].vy = 0;
                     this.pieces[idx].active = ps.active;
                   }
                 });
