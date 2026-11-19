@@ -537,7 +537,7 @@
   <section id="home-screen">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.0.6</h1>
+      <h1 class="home-title">CARROM STUDIO 0.0.7</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
@@ -1077,18 +1077,20 @@
 
           const onDown = (e) => {
             if (!this.isLocalTurn()) return;
-            const pt = e.touches ? e.touches[0] : e;
+            const pt = (e.touches && e.touches.length) ? e.touches[0] : (e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : e);
             const pos = this.toLogicalCoords(pt.clientX, pt.clientY);
             const dist = Math.hypot(pos.x - this.striker.x, pos.y - this.striker.y);
-            if (dist <= this.striker.r + 24) {
+            if (dist <= this.striker.r + 30) {
               this.isAiming = true;
               this.aimVec = { x: 0, y: 0 };
+              document.getElementById("power-fill").style.width = "0%";
             }
           };
 
           const onMove = (e) => {
             if (!this.isAiming) return;
-            const pt = e.touches ? e.touches[0] : e;
+            if (e.cancelable) e.preventDefault();
+            const pt = (e.touches && e.touches.length) ? e.touches[0] : (e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : e);
             const pos = this.toLogicalCoords(pt.clientX, pt.clientY);
             let dx = this.striker.x - pos.x;
             let dy = this.striker.y - pos.y;
@@ -1120,8 +1122,8 @@
           this.canvas.addEventListener("mousedown", onDown);
           window.addEventListener("mousemove", onMove);
           window.addEventListener("mouseup", onUp);
-          this.canvas.addEventListener("touchstart", onDown, { passive: true });
-          window.addEventListener("touchmove", onMove, { passive: true });
+          this.canvas.addEventListener("touchstart", onDown, { passive: false });
+          window.addEventListener("touchmove", onMove, { passive: false });
           window.addEventListener("touchend", onUp);
         }
 
@@ -1596,16 +1598,28 @@
             const audio = document.createElement("audio");
             audio.autoplay = true;
             audio.playsInline = true;
+            audio.muted = false;
+            audio.volume = 1.0;
             document.body.appendChild(audio);
             this.remoteAudioEl = audio;
           }
+          this.remoteAudioEl.muted = false;
+          this.remoteAudioEl.volume = 1.0;
           return this.remoteAudioEl;
         }
 
-        createPeerConnection() {
-          if (this.peerConn) return this.peerConn;
+        createPeerConnection(forceNew = false) {
+          if (this.peerConn && !forceNew) return this.peerConn;
+          if (this.peerConn && forceNew) {
+            try { this.peerConn.close(); } catch (_) {}
+            this.peerConn = null;
+          }
+
           const pc = new RTCPeerConnection({
-            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+            iceServers: [
+              { urls: "stun:stun.l.google.com:19302" },
+              { urls: "stun:stun1.l.google.com:19302" }
+            ]
           });
 
           if (this.localStream) {
@@ -1618,8 +1632,12 @@
             const audioEl = this.ensureRemoteAudio();
             if (event.streams && event.streams[0]) {
               audioEl.srcObject = event.streams[0];
-              audioEl.play().catch(() => {});
+            } else if (event.track) {
+              const inbound = audioEl.srcObject instanceof MediaStream ? audioEl.srcObject : new MediaStream();
+              inbound.addTrack(event.track);
+              audioEl.srcObject = inbound;
             }
+            audioEl.play().catch(() => {});
           };
 
           pc.onicecandidate = (event) => {
@@ -1635,13 +1653,19 @@
           return pc;
         }
 
+        async sendFreshOffer() {
+          if (this.mode !== "ONLINE" || !this.opponentJoined) return;
+          const pc = this.createPeerConnection(false);
+          const offer = await pc.createOffer({ offerToReceiveAudio: true });
+          await pc.setLocalDescription(offer);
+          this.broadcastState({ type: "RTC_OFFER", offer });
+        }
+
         async startOfferIfNeeded() {
           if (this.mode !== "ONLINE" || !this.opponentJoined) return;
-          const pc = this.createPeerConnection();
+          this.createPeerConnection(false);
           if (this.onlineRole === "HOST") {
-            const offer = await pc.createOffer({ offerToReceiveAudio: true });
-            await pc.setLocalDescription(offer);
-            this.broadcastState({ type: "RTC_OFFER", offer });
+            await this.sendFreshOffer();
           } else {
             this.broadcastState({ type: "RTC_READY" });
           }
@@ -1650,9 +1674,9 @@
         async handleSignaling(payload) {
           if (!payload || this.mode !== "ONLINE") return;
           if (payload.type === "RTC_READY" && this.onlineRole === "HOST") {
-            await this.startOfferIfNeeded();
+            await this.sendFreshOffer();
           } else if (payload.type === "RTC_OFFER") {
-            const pc = this.createPeerConnection();
+            const pc = this.createPeerConnection(false);
             await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
@@ -1662,15 +1686,17 @@
             }
             this.pendingIceCandidates = [];
           } else if (payload.type === "RTC_ANSWER") {
-            const pc = this.createPeerConnection();
-            await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
-            for (const cand of this.pendingIceCandidates) {
-              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+            const pc = this.createPeerConnection(false);
+            if (pc.signalingState === "have-local-offer") {
+              await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+              for (const cand of this.pendingIceCandidates) {
+                await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+              }
+              this.pendingIceCandidates = [];
             }
-            this.pendingIceCandidates = [];
           } else if (payload.type === "RTC_ICE" && payload.candidate) {
-            const pc = this.createPeerConnection();
-            if (pc.remoteDescription) {
+            const pc = this.createPeerConnection(false);
+            if (pc.remoteDescription && pc.remoteDescription.type) {
               await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(() => {});
             } else {
               this.pendingIceCandidates.push(payload.candidate);
@@ -1691,17 +1717,18 @@
               return { ok: false, message: "Microphone requires HTTPS or a supported browser." };
             }
             try {
+              this.ensureRemoteAudio().play().catch(() => {});
               this.localStream = await navigator.mediaDevices.getUserMedia({
                 audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
                 video: false
               });
               this.micEnabled = true;
-              const pc = this.createPeerConnection();
+              const pc = this.createPeerConnection(false);
               this.localStream.getTracks().forEach((track) => {
                 const alreadySending = pc.getSenders().some((s) => s.track === track);
                 if (!alreadySending) pc.addTrack(track, this.localStream);
               });
-              await this.startOfferIfNeeded();
+              await this.sendFreshOffer();
               return { ok: true, enabled: true };
             } catch (_) {
               return { ok: false, message: "Microphone permission was denied or unavailable." };
