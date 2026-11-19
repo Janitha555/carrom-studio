@@ -620,7 +620,7 @@
   <section id="home-screen">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.1.8</h1>
+      <h1 class="home-title">CARROM STUDIO 0.1.9</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
@@ -2057,6 +2057,7 @@
             this.turn = nextTurn;
             this.resetStrikerPosition(true);
           } else {
+            // GUEST: apply predicted turn immediately so UI never stays locked, then snap to Host's authoritative TURN_SYNC
             this.turn = nextTurn;
             this.resetStrikerPosition(false);
           }
@@ -2516,8 +2517,9 @@
               this.broadcastState({
                 type: "MATCH_START",
                 turn: this.turn,
-                scores: this.scores,
+                pocketedCounts: this.pocketedCounts,
                 queenState: this.queenState,
+                queenOwner: this.queenOwner,
                 pieces: this.pieces.map((p) => ({ x: p.x, y: p.y, active: p.active }))
               });
               if (this.callbacks.onMatchConnected) {
@@ -2525,6 +2527,8 @@
               }
             } else if (payload.type === "MATCH_START" && this.onlineRole === "GUEST") {
               this.opponentJoined = true;
+              this.matchOver = false;
+              this.roundEndedNoWinner = false;
               this.turn = payload.turn || "white";
               this.pocketedCounts = payload.pocketedCounts || { white: 0, black: 0 };
               this.queenState = payload.queenState || "board";
@@ -2541,6 +2545,19 @@
               this.resetStrikerPosition(false);
               if (this.callbacks.onMatchConnected) {
                 this.callbacks.onMatchConnected("GUEST");
+              }
+            } else if (payload.type === "REMATCH_START") {
+              closeVictory();
+              this.initMatch();
+              if (this.onlineRole === "HOST") {
+                this.broadcastState({
+                  type: "MATCH_START",
+                  turn: this.turn,
+                  pocketedCounts: this.pocketedCounts,
+                  queenState: this.queenState,
+                  queenOwner: this.queenOwner,
+                  pieces: this.pieces.map((p) => ({ x: p.x, y: p.y, active: p.active }))
+                });
               }
             } else if (payload.type === "SLIDE") {
               this.striker.x = payload.x;
@@ -2826,6 +2843,16 @@
       document.getElementById("btn-play-again").onclick = () => {
         closeVictory();
         game.initMatch();
+        if (game.mode === "ONLINE") {
+          game.broadcastState({
+            type: "REMATCH_START",
+            turn: game.turn,
+            pocketedCounts: game.pocketedCounts,
+            queenState: game.queenState,
+            queenOwner: game.queenOwner,
+            pieces: game.pieces.map((p) => ({ x: p.x, y: p.y, active: p.active }))
+          });
+        }
       };
 
       document.getElementById("btn-victory-home").onclick = async () => {
