@@ -537,7 +537,7 @@
   <section id="home-screen">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.0.7</h1>
+      <h1 class="home-title">CARROM STUDIO 0.0.8</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
@@ -1056,8 +1056,10 @@
 
         toLogicalCoords(clientX, clientY) {
           const rect = this.canvas.getBoundingClientRect();
-          let x = ((clientX - rect.left) / rect.width) * BOARD_SIZE;
-          let y = ((clientY - rect.top) / rect.height) * BOARD_SIZE;
+          const safeW = rect.width || BOARD_SIZE;
+          const safeH = rect.height || BOARD_SIZE;
+          let x = ((clientX - rect.left) / safeW) * BOARD_SIZE;
+          let y = ((clientY - rect.top) / safeH) * BOARD_SIZE;
           if (this.shouldFlipPerspective()) {
             x = BOARD_SIZE - x;
             y = BOARD_SIZE - y;
@@ -1075,12 +1077,24 @@
             this.broadcastState({ type: "SLIDE", x: this.striker.x });
           });
 
+          const extractPoint = (e) => {
+            if (e.touches && e.touches.length > 0) {
+              return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+            }
+            if (e.changedTouches && e.changedTouches.length > 0) {
+              return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
+            }
+            return { clientX: e.clientX, clientY: e.clientY };
+          };
+
           const onDown = (e) => {
             if (!this.isLocalTurn()) return;
-            const pt = (e.touches && e.touches.length) ? e.touches[0] : (e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : e);
+            const pt = extractPoint(e);
+            if (typeof pt.clientX !== "number" || typeof pt.clientY !== "number") return;
             const pos = this.toLogicalCoords(pt.clientX, pt.clientY);
             const dist = Math.hypot(pos.x - this.striker.x, pos.y - this.striker.y);
-            if (dist <= this.striker.r + 30) {
+            // Allow pulling from striker disk or nearby on baseline
+            if (dist <= this.striker.r + 42) {
               this.isAiming = true;
               this.aimVec = { x: 0, y: 0 };
               document.getElementById("power-fill").style.width = "0%";
@@ -1090,7 +1104,8 @@
           const onMove = (e) => {
             if (!this.isAiming) return;
             if (e.cancelable) e.preventDefault();
-            const pt = (e.touches && e.touches.length) ? e.touches[0] : (e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : e);
+            const pt = extractPoint(e);
+            if (typeof pt.clientX !== "number" || typeof pt.clientY !== "number") return;
             const pos = this.toLogicalCoords(pt.clientX, pt.clientY);
             let dx = this.striker.x - pos.x;
             let dy = this.striker.y - pos.y;
@@ -1110,15 +1125,18 @@
             if (!this.isAiming) return;
             this.isAiming = false;
             const mag = Math.hypot(this.aimVec.x, this.aimVec.y);
-            if (mag > 14) {
-              const vx = this.aimVec.x * 0.24;
-              const vy = this.aimVec.y * 0.24;
+            if (mag > 12) {
+              const vx = this.aimVec.x * 0.25;
+              const vy = this.aimVec.y * 0.25;
               this.launchStriker(this.striker.x, vx, vy, true);
             }
             this.aimVec = { x: 0, y: 0 };
             document.getElementById("power-fill").style.width = "0%";
           };
 
+          this.canvas.addEventListener("pointerdown", onDown);
+          window.addEventListener("pointermove", onMove, { passive: false });
+          window.addEventListener("pointerup", onUp);
           this.canvas.addEventListener("mousedown", onDown);
           window.addEventListener("mousemove", onMove);
           window.addEventListener("mouseup", onUp);
@@ -1598,6 +1616,7 @@
             const audio = document.createElement("audio");
             audio.autoplay = true;
             audio.playsInline = true;
+            audio.controls = false;
             audio.muted = false;
             audio.volume = 1.0;
             document.body.appendChild(audio);
@@ -1618,13 +1637,15 @@
           const pc = new RTCPeerConnection({
             iceServers: [
               { urls: "stun:stun.l.google.com:19302" },
-              { urls: "stun:stun1.l.google.com:19302" }
+              { urls: "stun:stun1.l.google.com:19302" },
+              { urls: "stun:stun2.l.google.com:19302" }
             ]
           });
 
           if (this.localStream) {
             this.localStream.getTracks().forEach((track) => {
-              pc.addTrack(track, this.localStream);
+              const alreadyAdded = pc.getSenders().some((s) => s.track === track);
+              if (!alreadyAdded) pc.addTrack(track, this.localStream);
             });
           }
 
@@ -1654,27 +1675,21 @@
         }
 
         async sendFreshOffer() {
-          if (this.mode !== "ONLINE" || !this.opponentJoined) return;
+          if (this.mode !== "ONLINE") return;
           const pc = this.createPeerConnection(false);
           const offer = await pc.createOffer({ offerToReceiveAudio: true });
           await pc.setLocalDescription(offer);
           this.broadcastState({ type: "RTC_OFFER", offer });
         }
 
-        async startOfferIfNeeded() {
-          if (this.mode !== "ONLINE" || !this.opponentJoined) return;
-          this.createPeerConnection(false);
-          if (this.onlineRole === "HOST") {
-            await this.sendFreshOffer();
-          } else {
-            this.broadcastState({ type: "RTC_READY" });
-          }
-        }
-
         async handleSignaling(payload) {
           if (!payload || this.mode !== "ONLINE") return;
-          if (payload.type === "RTC_READY" && this.onlineRole === "HOST") {
-            await this.sendFreshOffer();
+          if (payload.type === "RTC_READY") {
+            if (this.onlineRole === "HOST") {
+              await this.sendFreshOffer();
+            } else {
+              this.createPeerConnection(false);
+            }
           } else if (payload.type === "RTC_OFFER") {
             const pc = this.createPeerConnection(false);
             await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
@@ -1685,6 +1700,7 @@
               await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
             }
             this.pendingIceCandidates = [];
+            this.ensureRemoteAudio().play().catch(() => {});
           } else if (payload.type === "RTC_ANSWER") {
             const pc = this.createPeerConnection(false);
             if (pc.signalingState === "have-local-offer") {
@@ -1693,6 +1709,7 @@
                 await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
               }
               this.pendingIceCandidates = [];
+              this.ensureRemoteAudio().play().catch(() => {});
             }
           } else if (payload.type === "RTC_ICE" && payload.candidate) {
             const pc = this.createPeerConnection(false);
@@ -1717,7 +1734,8 @@
               return { ok: false, message: "Microphone requires HTTPS or a supported browser." };
             }
             try {
-              this.ensureRemoteAudio().play().catch(() => {});
+              const audioEl = this.ensureRemoteAudio();
+              audioEl.play().catch(() => {});
               this.localStream = await navigator.mediaDevices.getUserMedia({
                 audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
                 video: false
@@ -1905,8 +1923,10 @@
       const onlineModal = document.getElementById("online-modal");
       const infoModal = document.getElementById("info-modal");
       const victoryModal = document.getElementById("victory-modal");
+      let returnHomeAfterInfo = false;
 
-      const openInfo = (title, msg) => {
+      const openInfo = (title, msg, goHomeOnClose = false) => {
+        returnHomeAfterInfo = goHomeOnClose;
         document.getElementById("info-title").textContent = title;
         document.getElementById("info-message").textContent = msg;
         infoModal.classList.add("open");
@@ -1929,7 +1949,7 @@
           }
         },
         onRoundEndedNoWinner: (reason) => {
-          openInfo("Round Ended — No Winner", reason);
+          openInfo("Game Ended Successfully", `${reason} Returning to Nexora Games Home.`, true);
         },
         onMatchWin: (winner, scores) => {
           AudioFX.fanfare();
@@ -2054,14 +2074,14 @@
           statusEl.className = "status-msg err";
           statusEl.textContent = "Enter a valid 5-character room code.";
           return;
-        }
-        statusEl.className = "status-msg";
-        statusEl.textContent = "Connecting to room...";
-        await game.connectRoom(code, "GUEST");
-      };
-
-      document.getElementById("btn-info-ok").onclick = () => {
+      document.getElementById("btn-info-ok").onclick = async () => {
         infoModal.classList.remove("open");
+        if (returnHomeAfterInfo) {
+          returnHomeAfterInfo = false;
+          closeVictory();
+          await game.cleanupOnline();
+          homeScreen.classList.remove("hidden");
+        }
       };
 
       // Victory Controls
