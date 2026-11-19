@@ -7,269 +7,602 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
-      --bg-dark: #0a0d12;
-      --panel-bg: rgba(18, 22, 30, 0.92);
+      --bg-dark: #090c11;
+      --panel-bg: rgba(17, 22, 31, 0.92);
       --accent: #22d3ee;
       --accent-gold: #f59e0b;
+      --accent-rose: #f43f5e;
       --text-main: #f1f5f9;
       --text-muted: #94a3b8;
       --danger: #ef4444;
       --success: #10b981;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
     body {
-      background: radial-gradient(circle at 50% 0%, #16202e 0%, var(--bg-dark) 75%);
+      background: radial-gradient(circle at 50% 0%, #172233 0%, var(--bg-dark) 75%);
       color: var(--text-main);
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-      min-height: 100vh; overflow: hidden;
+      min-height: 100vh;
+      overflow-x: hidden;
     }
+
+    /* =========================================================
+       NEXORA GAMES HOME SCREEN
+       ========================================================= */
+    #home-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(34, 211, 238, 0.14), transparent 45%),
+        radial-gradient(circle at 80% 75%, rgba(245, 158, 11, 0.14), transparent 45%),
+        linear-gradient(160deg, #0b1018 0%, #07090e 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+
+    #home-screen.hidden {
+      opacity: 0;
+      transform: scale(1.03);
+      pointer-events: none;
+    }
+
+    .home-card {
+      width: 100%;
+      max-width: 500px;
+      background: rgba(16, 21, 30, 0.92);
+      border: 1px solid rgba(34, 211, 238, 0.22);
+      border-radius: 24px;
+      padding: 32px 26px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.75);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .studio-tag {
+      display: inline-block;
+      align-self: center;
+      padding: 5px 14px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: var(--accent);
+      background: rgba(34, 211, 238, 0.12);
+      border: 1px solid rgba(34, 211, 238, 0.35);
+    }
+
+    .home-title {
+      font-size: 2.1rem;
+      font-weight: 900;
+      letter-spacing: 0.6px;
+      background: linear-gradient(135deg, #ffffff 10%, #22d3ee 60%, #f59e0b 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .home-sub {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .home-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      margin-top: 6px;
+    }
+
+    .home-btn {
+      width: 100%;
+      padding: 13px 16px;
+      border-radius: 12px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: #1b2230;
+      color: var(--text-main);
+      transition: all 0.2s ease;
+    }
+
+    .home-btn:hover {
+      background: #253044;
+      transform: translateY(-2px);
+    }
+
+    .home-btn.primary {
+      background: linear-gradient(135deg, #06b6d4, #22d3ee);
+      color: #061218;
+      border: none;
+      box-shadow: 0 10px 26px rgba(34, 211, 238, 0.3);
+    }
+
+    .home-btn.gold {
+      background: linear-gradient(135deg, #d97706, #f59e0b);
+      color: #140c02;
+      border: none;
+      box-shadow: 0 10px 26px rgba(245, 158, 11, 0.25);
+    }
+
+    /* =========================================================
+       GAME SHELL & HEADER
+       ========================================================= */
+    #game-shell {
+      width: 100%;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+    }
+
     header {
-      width: 100%; max-width: 720px; padding: 10px 16px;
-      display: flex; align-items: center; justify-content: space-between; gap: 8px;
-      background: var(--panel-bg); backdrop-filter: blur(12px);
+      width: 100%;
+      max-width: 720px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
       border-bottom: 1px solid rgba(34, 211, 238, 0.14);
       flex-wrap: wrap;
     }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .brand {
-      font-weight: 800; letter-spacing: 0.7px; font-size: 1rem;
-      color: var(--accent); text-shadow: 0 0 14px rgba(34, 211, 238, 0.35);
+      font-weight: 800;
+      letter-spacing: 0.7px;
+      font-size: 0.98rem;
+      color: var(--accent);
     }
-    .modes { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+    .modes {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
     button {
-      background: #1e2532; color: var(--text-main); border: 1px solid rgba(255,255,255,0.09);
-      padding: 7px 11px; border-radius: 8px; font-size: 0.78rem; font-weight: 600;
-      cursor: pointer; transition: all 0.2s ease;
+      background: #1e2532;
+      color: var(--text-main);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      padding: 7px 11px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.18s ease;
     }
-    button:hover { background: #293344; transform: translateY(-1px); }
+
+    button:hover {
+      background: #293344;
+    }
+
     button.active {
       background: linear-gradient(135deg, #06b6d4, #22d3ee);
-      color: #061218; border-color: var(--accent);
-      box-shadow: 0 0 16px rgba(34, 211, 238, 0.35);
+      color: #061218;
+      border-color: var(--accent);
+      box-shadow: 0 0 14px rgba(34, 211, 238, 0.3);
     }
-    .icon-btn { padding: 6px 10px; font-size: 0.78rem; }
+
     .scoreboard {
-      width: 100%; max-width: 540px; display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 18px; margin-top: 8px; background: var(--panel-bg);
-      border-radius: 14px; border: 1px solid rgba(255,255,255,0.07);
-      box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+      width: 100%;
+      max-width: 560px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 18px;
+      margin-top: 8px;
+      background: var(--panel-bg);
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+      gap: 8px;
     }
-    .player-box { display: flex; flex-direction: column; gap: 2px; transition: opacity 0.25s ease; }
-    .player-box.right { text-align: right; }
-    .player-box.dimmed { opacity: 0.52; }
-    .p-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
-    .p-score { font-size: 1.3rem; font-weight: 800; color: #fff; }
+
+    .player-box {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      transition: opacity 0.25s ease;
+    }
+
+    .player-box.right {
+      text-align: right;
+    }
+
+    .player-box.dimmed {
+      opacity: 0.55;
+    }
+
+    .p-label {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .p-score {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .center-status {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
     .turn-badge {
-      padding: 5px 12px; border-radius: 20px; font-size: 0.73rem; font-weight: 800;
-      letter-spacing: 0.5px; text-align: center;
-      background: rgba(34, 211, 238, 0.14); color: var(--accent);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      background: rgba(34, 211, 238, 0.14);
+      color: var(--accent);
       border: 1px solid rgba(34, 211, 238, 0.4);
-      box-shadow: 0 0 14px rgba(34, 211, 238, 0.18);
       transition: all 0.25s ease;
     }
+
     .turn-badge.black-turn {
-      background: rgba(245, 158, 11, 0.15); color: var(--accent-gold);
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--accent-gold);
       border-color: rgba(245, 158, 11, 0.42);
-      box-shadow: 0 0 14px rgba(245, 158, 11, 0.2);
     }
-    .turn-badge.ended-state {
-      background: rgba(239, 68, 68, 0.18); color: #fca5a5;
-      border-color: rgba(239, 68, 68, 0.5);
+
+    .queen-pill {
+      font-size: 0.66rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(244, 63, 94, 0.18);
+      color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.4);
     }
+
     #canvas-wrap {
-      position: relative; display: flex; align-items: center; justify-content: center;
-      flex: 1; width: 100%; max-width: 560px; padding: 10px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      width: 100%;
+      max-width: 560px;
+      padding: 8px 12px;
     }
-    canvas {
+
+    canvas#board {
       border-radius: 20px;
-      box-shadow: 0 28px 65px rgba(0,0,0,0.75), 0 0 0 1px rgba(34, 211, 238, 0.14);
-      touch-action: none; max-width: 100%; max-height: 100%;
+      box-shadow: 0 28px 65px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(34, 211, 238, 0.14);
+      touch-action: none;
+      max-width: 100%;
+      max-height: 100%;
     }
+
     .controls-bar {
-      width: 100%; max-width: 540px; padding: 8px 18px 16px;
-      display: flex; flex-direction: column; gap: 8px;
+      width: 100%;
+      max-width: 560px;
+      padding: 6px 18px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
-    .slider-row { display: flex; align-items: center; gap: 12px; }
-    .slider-row span { font-size: 0.72rem; color: var(--text-muted); min-width: 72px; letter-spacing: 0.6px; }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .slider-row span {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      min-width: 72px;
+      letter-spacing: 0.6px;
+    }
+
     input[type="range"] {
-      flex: 1; accent-color: var(--accent); height: 6px; border-radius: 4px; cursor: pointer;
+      flex: 1;
+      accent-color: var(--accent);
+      height: 6px;
+      border-radius: 4px;
+      cursor: pointer;
     }
-    .power-wrap { display: flex; align-items: center; gap: 12px; }
-    .power-meter {
-      flex: 1; height: 7px; border-radius: 999px; background: rgba(255,255,255,0.08);
-      overflow: hidden; border: 1px solid rgba(255,255,255,0.06);
+
+    .power-track {
+      flex: 1;
+      height: 8px;
+      background: #141923;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
     }
+
     .power-fill {
-      height: 100%; width: 0%; border-radius: 999px;
+      height: 100%;
+      width: 0%;
       background: linear-gradient(90deg, #22d3ee, #f59e0b, #ef4444);
       transition: width 0.05s linear;
     }
+
+    /* =========================================================
+       MODALS & VICTORY OVERLAY
+       ========================================================= */
     .modal-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.78); backdrop-filter: blur(8px);
-      display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 90;
+      padding: 16px;
     }
-    .modal-backdrop.open { display: flex; }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
     .modal {
-      background: #141923; border: 1px solid rgba(34, 211, 238, 0.22);
-      border-radius: 16px; padding: 22px; width: 100%; max-width: 390px;
-      display: flex; flex-direction: column; gap: 14px;
-      box-shadow: 0 24px 60px rgba(0,0,0,0.65);
+      background: #131924;
+      border: 1px solid rgba(34, 211, 238, 0.24);
+      border-radius: 18px;
+      padding: 22px;
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
     }
-    .modal h3 { font-size: 1.1rem; color: var(--accent); }
-    .modal p { font-size: 0.84rem; color: var(--text-muted); line-height: 1.45; }
-    .warn-box {
-      background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.38);
-      border-radius: 10px; padding: 12px 14px; font-size: 0.8rem; color: #fecaca;
+
+    .modal h3 {
+      font-size: 1.12rem;
+      color: var(--accent);
+    }
+
+    .modal p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
       line-height: 1.5;
     }
-    .room-code-box {
-      background: #0b0e14; border: 1px dashed var(--accent); border-radius: 10px;
-      padding: 12px; text-align: center; font-size: 1.5rem; font-weight: 800;
-      letter-spacing: 4px; color: var(--accent); cursor: pointer;
-    }
-    .input-row { display: flex; gap: 8px; }
-    input[type="text"] {
-      flex: 1; background: #0b0e14; border: 1px solid rgba(255,255,255,0.16);
-      border-radius: 8px; padding: 10px 12px; color: #fff; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 2px; outline: none;
-    }
-    .status-msg { font-size: 0.8rem; min-height: 18px; color: var(--success); }
-    .status-msg.err { color: var(--danger); }
 
-    /* Dedicated NEXORA GAMES Home Screen */
-    #home-screen {
-      position: fixed; inset: 0; z-index: 60;
-      background: radial-gradient(circle at 50% 18%, #182538 0%, #0a0d12 76%);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 24px; text-align: center;
-      transition: opacity 0.32s ease, transform 0.32s ease;
+    .warn-box {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 0.82rem;
+      color: #fde68a;
+      line-height: 1.45;
     }
-    #home-screen.hidden-screen {
-      opacity: 0; transform: scale(1.03); pointer-events: none;
+
+    .room-code-box {
+      background: #090d14;
+      border: 1px dashed var(--accent);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: 4px;
+      color: var(--accent);
+      cursor: pointer;
     }
-    .nexora-tag {
-      font-size: 0.72rem; font-weight: 800; letter-spacing: 3.5px;
-      text-transform: uppercase; color: var(--accent);
-      padding: 6px 14px; border-radius: 999px;
-      background: rgba(34, 211, 238, 0.1); border: 1px solid rgba(34, 211, 238, 0.28);
-      margin-bottom: 14px;
+
+    .input-row {
+      display: flex;
+      gap: 8px;
     }
-    .hero-title {
-      font-size: clamp(2.1rem, 5vw, 3.1rem); font-weight: 900; letter-spacing: -0.5px;
-      line-height: 1.08; color: #ffffff; margin-bottom: 10px;
+
+    input[type="text"] {
+      flex: 1;
+      background: #090d14;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #fff;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      outline: none;
     }
-    .hero-title span {
-      background: linear-gradient(135deg, #22d3ee, #f59e0b);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+
+    .status-msg {
+      font-size: 0.8rem;
+      min-height: 18px;
+      color: var(--success);
     }
-    .hero-sub {
-      max-width: 460px; font-size: 0.9rem; color: var(--text-muted);
-      line-height: 1.55; margin-bottom: 26px;
+
+    .status-msg.err {
+      color: var(--danger);
     }
-    .home-menu {
-      width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 11px;
+
+    /* Victory Celebration Banner */
+    #victory-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 95;
+      background: rgba(5, 8, 13, 0.86);
+      backdrop-filter: blur(10px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
     }
-    .home-btn {
-      padding: 13px 18px; border-radius: 12px; font-size: 0.9rem; font-weight: 700;
-      display: flex; align-items: center; justify-content: space-between;
-      background: rgba(24, 30, 42, 0.92); border: 1px solid rgba(255,255,255,0.09);
+
+    #victory-modal.open {
+      display: flex;
     }
-    .home-btn.primary {
-      background: linear-gradient(135deg, #06b6d4, #22d3ee);
-      color: #061218; border-color: var(--accent);
-      box-shadow: 0 10px 28px rgba(34, 211, 238, 0.28);
+
+    #confetti-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 94;
+      display: none;
+    }
+
+    #confetti-canvas.open {
+      display: block;
+    }
+
+    .victory-card {
+      position: relative;
+      z-index: 96;
+      width: 100%;
+      max-width: 420px;
+      background: linear-gradient(160deg, #182234 0%, #101520 100%);
+      border: 1px solid rgba(245, 158, 11, 0.45);
+      border-radius: 22px;
+      padding: 28px 22px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), 0 0 35px rgba(245, 158, 11, 0.18);
+      animation: popIn 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.84); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .trophy-badge {
+      font-size: 2.6rem;
+      line-height: 1;
+    }
+
+    .champion-title {
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: var(--accent-gold);
+      letter-spacing: 0.5px;
+    }
+
+    .final-scores {
+      display: flex;
+      justify-content: space-around;
+      background: rgba(9, 13, 20, 0.75);
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.9rem;
+      font-weight: 700;
     }
   </style>
 </head>
 <body oncontextmenu="return false;">
 
-  <!-- Home Screen: NEXORA GAMES -->
-  <section id="home-screen" aria-label="Nexora Games Home Screen">
-    <div class="nexora-tag">NEXORA GAMES</div>
-    <h1 class="hero-title">CARROM <span>STUDIO</span></h1>
-    <p class="hero-sub">
-      Precision sub-stepped tabletop physics, procedural wood acoustics, smart AI tactics, and real-time online duels.
-    </p>
-    <div class="home-menu">
-      <button id="home-btn-ai" class="home-btn primary">
-        <span>Play vs Smart AI</span>
-        <span>→</span>
-      </button>
-      <button id="home-btn-pvp" class="home-btn">
-        <span>Pass &amp; Play (Local 2P)</span>
-        <span>2P</span>
-      </button>
-      <button id="home-btn-online" class="home-btn">
-        <span>Online Multiplayer</span>
-        <span>LIVE</span>
-      </button>
-      <button id="home-btn-rules" class="home-btn">
-        <span>Rules &amp; Controls</span>
-        <span>?</span>
-      </button>
+  <!-- NEXORA GAMES HOME SCREEN -->
+  <section id="home-screen">
+    <div class="home-card">
+      <div class="studio-tag">NEXORA GAMES</div>
+      <h1 class="home-title">CARROM STUDIO 0.0.5</h1>
+      <p class="home-sub">
+        Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
+      </p>
+      <div class="home-actions">
+        <button class="home-btn primary" id="home-play-ai">Play vs Smart AI</button>
+        <button class="home-btn" id="home-play-pvp">Pass & Play (2 Players)</button>
+        <button class="home-btn gold" id="home-play-online">Online Multiplayer</button>
+      </div>
     </div>
   </section>
 
-  <header>
-    <div style="display:flex;align-items:center;gap:10px;">
-      <button id="btn-home" class="icon-btn" title="Return to Nexora Games Home">Home</button>
-      <div class="brand">CARROM STUDIO 0.0.4 <span style="font-size:0.65rem;color:var(--text-muted);font-weight:600;">• NEXORA GAMES</span></div>
-    </div>
-    <div class="modes">
-      <button id="btn-ai" class="active">vs AI</button>
-      <button id="btn-pvp">Pass &amp; Play</button>
-      <button id="btn-online">Online</button>
-      <button id="btn-mute" class="icon-btn" title="Mute / Unmute Sound">🔊</button>
-    </div>
-  </header>
+  <!-- MAIN GAME SHELL -->
+  <div id="game-shell">
+    <header>
+      <div class="brand-group">
+        <button id="btn-home" title="Nexora Games Home">Nexora</button>
+        <div class="brand">CARROM STUDIO</div>
+      </div>
+      <div class="modes">
+        <button id="btn-ai" class="active">vs AI</button>
+        <button id="btn-pvp">Pass & Play</button>
+        <button id="btn-online">Online</button>
+        <button id="btn-sound" title="Toggle Sound">Sound: ON</button>
+      </div>
+    </header>
 
-  <div class="scoreboard">
-    <div class="player-box" id="p1-box">
-      <span class="p-label" id="p1-name">White (You)</span>
-      <span class="p-score" id="p1-score">0</span>
+    <div class="scoreboard">
+      <div class="player-box" id="p1-box">
+        <span class="p-label" id="p1-name">White (You)</span>
+        <span class="p-score" id="p1-score">0</span>
+      </div>
+      <div class="center-status">
+        <div class="turn-badge" id="turn-indicator">WHITE'S TURN</div>
+        <div class="queen-pill" id="queen-status">QUEEN: ON BOARD</div>
+      </div>
+      <div class="player-box right" id="p2-box">
+        <span class="p-label" id="p2-name">Black (AI)</span>
+        <span class="p-score" id="p2-score">0</span>
+      </div>
     </div>
-    <div class="turn-badge" id="turn-indicator">WHITE'S TURN</div>
-    <div class="player-box right" id="p2-box">
-      <span class="p-label" id="p2-name">Black (AI)</span>
-      <span class="p-score" id="p2-score">0</span>
+
+    <div id="canvas-wrap">
+      <canvas id="board" width="600" height="600"></canvas>
+    </div>
+
+    <div class="controls-bar">
+      <div class="slider-row">
+        <span>POSITION</span>
+        <input type="range" id="striker-pos" min="155" max="445" value="300" />
+      </div>
+      <div class="slider-row">
+        <span>POWER</span>
+        <div class="power-track">
+          <div class="power-fill" id="power-fill"></div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div id="canvas-wrap">
-    <canvas id="board" width="600" height="600"></canvas>
-  </div>
-
-  <div class="controls-bar">
-    <div class="slider-row">
-      <span>POSITION</span>
-      <input type="range" id="striker-pos" min="155" max="445" value="300" />
-    </div>
-    <div class="power-wrap">
-      <span style="font-size:0.72rem;color:var(--text-muted);min-width:72px;letter-spacing:0.6px;">POWER</span>
-      <div class="power-meter"><div class="power-fill" id="power-fill"></div></div>
-      <span id="power-pct" style="font-size:0.72rem;color:var(--accent);min-width:36px;text-align:right;font-weight:700;">0%</span>
-    </div>
-  </div>
-
-  <!-- Online Multiplayer Risk Warning Modal -->
+  <!-- ONLINE MULTIPLAYER WARNING MODAL -->
   <div class="modal-backdrop" id="online-warning-modal">
     <div class="modal">
-      <h3 style="color:#fca5a5;">Online Multiplayer Warning</h3>
+      <h3>Online Multiplayer Notice</h3>
       <div class="warn-box">
-        <strong>Offline / Disconnect Rule:</strong> If a player goes offline, loses internet connection, or exits the live room mid-match, the round ends immediately as <strong>No Winner</strong> (no win or loss is awarded).
+        <strong>Important Risk Notice:</strong> Live matches depend on a stable internet connection. If either player disconnects or goes offline during an active room, the round immediately ends with <strong>No Winner</strong> and no match points are awarded.
       </div>
-      <p>Please ensure your internet connection is stable before creating or joining a live room.</p>
-      <div style="display:flex;gap:8px;justify-content:flex-end;">
-        <button id="btn-cancel-warning">Cancel</button>
-        <button id="btn-accept-warning" class="active">Understand &amp; Continue</button>
+      <div class="input-row">
+        <button id="btn-accept-online" class="active" style="flex:1;">Continue to Lobby</button>
+        <button id="btn-cancel-online">Cancel</button>
       </div>
     </div>
   </div>
 
-  <!-- Online Room Modal -->
+  <!-- ONLINE LOBBY MODAL -->
   <div class="modal-backdrop" id="online-modal">
     <div class="modal">
-      <h3>Online Multiplayer</h3>
+      <h3>Online Multiplayer Lobby</h3>
       <p>Create a private room and share the 5-character code with your friend, or enter a code to join.</p>
       <button id="btn-create-room" class="active">Create New Room</button>
       <div id="created-room-area" style="display:none;">
@@ -280,18 +613,34 @@
         <button id="btn-join-room">Join</button>
       </div>
       <div class="status-msg" id="online-status"></div>
-      <button id="btn-close-modal" style="margin-top:4px;">Close</button>
+      <button id="btn-close-modal">Close</button>
     </div>
   </div>
 
-  <!-- Rules & Round End Modal -->
+  <!-- INFO / ROUND END MODAL -->
   <div class="modal-backdrop" id="info-modal">
     <div class="modal">
-      <h3 id="info-modal-title">Rules &amp; Controls</h3>
-      <div id="info-modal-body" style="font-size:0.84rem;color:var(--text-muted);line-height:1.5;"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;">
-        <button id="btn-info-home">Nexora Home</button>
-        <button id="btn-info-close" class="active">Continue</button>
+      <h3 id="info-title">Round Notice</h3>
+      <p id="info-message"></p>
+      <button id="btn-info-ok" class="active">OK</button>
+    </div>
+  </div>
+
+  <!-- VICTORY CELEBRATION OVERLAY -->
+  <canvas id="confetti-canvas"></canvas>
+  <div id="victory-modal">
+    <div class="victory-card">
+      <div class="trophy-badge">🏆</div>
+      <div class="studio-tag" style="letter-spacing:1.4px;">GRAND CHAMPION GRADUATED</div>
+      <div class="champion-title" id="winner-heading">WHITE WINS!</div>
+      <p id="winner-subtitle">All target pieces cleared with master precision.</p>
+      <div class="final-scores">
+        <div>WHITE: <span id="final-white-score">0</span></div>
+        <div>BLACK: <span id="final-black-score">0</span></div>
+      </div>
+      <div class="input-row" style="margin-top:6px;">
+        <button id="btn-play-again" class="active" style="flex:1;">Play Again</button>
+        <button id="btn-victory-home">Nexora Home</button>
       </div>
     </div>
   </div>
@@ -310,7 +659,6 @@
         }
       });
 
-      // Supabase Configuration (Replace YOUR_SUPABASE_ANON_KEY with your anon public key)
       const _SB_URL = "https://qbwfklkicamrlnuhcega.supabase.co";
       const _SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFid2ZrbGtpY2FtcmxudWhjZWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwNTc5NDIsImV4cCI6MjExMDYzMzk0Mn0.rCyInz8mTdTV5KnHuvDjryrRxS7q28zTCTXGGURFyTE";
 
@@ -319,22 +667,23 @@
         supabase = window.supabase.createClient(_SB_URL, _SB_KEY);
       }
 
+      // =========================================================
+      // AUDIO SYNTHESIZER (Clack, Pocket, Victory Fanfare)
+      // =========================================================
       const AudioFX = (() => {
         let ctx = null;
         let muted = false;
+
         const init = () => {
-          if (!ctx) {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (AudioCtx) ctx = new AudioCtx();
-          }
+          if (muted) return;
+          if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+          if (ctx.state === "suspended") ctx.resume().catch(() => {});
         };
-        const setMuted = (m) => { muted = Boolean(m); };
-        const isMuted = () => muted;
+
         const clack = (intensity = 0.5) => {
           if (muted) return;
           try {
             init();
-            if (!ctx) return;
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = "triangle";
@@ -342,15 +691,17 @@
             osc.frequency.exponentialRampToValueAtTime(68, ctx.currentTime + 0.065);
             gain.gain.setValueAtTime(Math.min(0.4, intensity * 0.35), ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
-            osc.connect(gain); gain.connect(ctx.destination);
-            osc.start(); osc.stop(ctx.currentTime + 0.075);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.075);
           } catch (_) {}
         };
+
         const pocket = () => {
           if (muted) return;
           try {
             init();
-            if (!ctx) return;
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = "sine";
@@ -358,13 +709,109 @@
             osc.frequency.exponentialRampToValueAtTime(920, ctx.currentTime + 0.17);
             gain.gain.setValueAtTime(0.26, ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.19);
-            osc.connect(gain); gain.connect(ctx.destination);
-            osc.start(); osc.stop(ctx.currentTime + 0.2);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.2);
           } catch (_) {}
         };
-        return { clack, pocket, setMuted, isMuted };
+
+        const fanfare = () => {
+          if (muted) return;
+          try {
+            init();
+            const notes = [523.25, 659.25, 783.99, 1046.5];
+            notes.forEach((freq, idx) => {
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.type = "triangle";
+              const startAt = ctx.currentTime + idx * 0.11;
+              osc.frequency.setValueAtTime(freq, startAt);
+              gain.gain.setValueAtTime(0.22, startAt);
+              gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.28);
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.start(startAt);
+              osc.stop(startAt + 0.3);
+            });
+          } catch (_) {}
+        };
+
+        const toggleMute = () => {
+          muted = !muted;
+          return muted;
+        };
+
+        return { clack, pocket, fanfare, toggleMute };
       })();
 
+      // =========================================================
+      // CONFETTI CELEBRATION CONTROLLER
+      // =========================================================
+      const ConfettiFX = (() => {
+        const cCanvas = document.getElementById("confetti-canvas");
+        const cCtx = cCanvas.getContext("2d");
+        let particles = [];
+        let animId = null;
+
+        const resize = () => {
+          cCanvas.width = window.innerWidth;
+          cCanvas.height = window.innerHeight;
+        };
+
+        const start = () => {
+          resize();
+          cCanvas.classList.add("open");
+          const palette = ["#22d3ee", "#f59e0b", "#f43f5e", "#10b981", "#ffffff"];
+          particles = Array.from({ length: 120 }, () => ({
+            x: Math.random() * cCanvas.width,
+            y: -20 - Math.random() * cCanvas.height * 0.5,
+            w: 7 + Math.random() * 6,
+            h: 4 + Math.random() * 5,
+            vx: (Math.random() - 0.5) * 3,
+            vy: 2.2 + Math.random() * 3.5,
+            rot: Math.random() * Math.PI * 2,
+            vRot: (Math.random() - 0.5) * 0.16,
+            color: palette[Math.floor(Math.random() * palette.length)]
+          }));
+
+          const tick = () => {
+            cCtx.clearRect(0, 0, cCanvas.width, cCanvas.height);
+            particles.forEach((p) => {
+              p.x += p.vx;
+              p.y += p.vy;
+              p.rot += p.vRot;
+              if (p.y > cCanvas.height + 20) {
+                p.y = -15;
+                p.x = Math.random() * cCanvas.width;
+              }
+              cCtx.save();
+              cCtx.translate(p.x, p.y);
+              cCtx.rotate(p.rot);
+              cCtx.fillStyle = p.color;
+              cCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+              cCtx.restore();
+            });
+            animId = requestAnimationFrame(tick);
+          };
+          if (animId) cancelAnimationFrame(animId);
+          tick();
+        };
+
+        const stop = () => {
+          if (animId) cancelAnimationFrame(animId);
+          animId = null;
+          cCanvas.classList.remove("open");
+          cCtx.clearRect(0, 0, cCanvas.width, cCanvas.height);
+        };
+
+        window.addEventListener("resize", resize);
+        return { start, stop };
+      })();
+
+      // =========================================================
+      // CARROM ENGINE WITH RED QUEEN COVER & VICTORY GRADUATION
+      // =========================================================
       const BOARD_SIZE = 600;
       const FRAME_W = 44;
       const PLAY_MIN = FRAME_W;
@@ -384,27 +831,26 @@
       ];
 
       class CarromEngine {
-        constructor(canvas) {
+        constructor(canvas, callbacks = {}) {
           this.canvas = canvas;
           this.ctx = canvas.getContext("2d");
           this.boardTex = this.renderWoodBoard();
+          this.callbacks = callbacks;
 
           this.mode = "AI";
           this.onlineRole = null;
           this.channel = null;
           this.localBus = null;
           this.roomCode = null;
-          this.matchStarted = false;
-          this.handshakeTimer = null;
+          this.opponentJoined = false;
           this.roundEndedNoWinner = false;
-          this.heartbeatTimer = null;
-          this.disconnectWatchTimer = null;
-          this.lastPeerHeartbeat = 0;
-          this.onRoundEndedNoWinner = null;
+          this.matchOver = false;
 
           this.turn = "white";
           this.scores = { white: 0, black: 0 };
+          // queenState: 'board' | 'pending_white' | 'pending_black' | 'covered'
           this.queenState = "board";
+          this.queenPendingGrace = false;
           this.pocketedThisTurn = [];
           this.isMoving = false;
           this.isAiming = false;
@@ -424,7 +870,8 @@
 
         renderWoodBoard() {
           const off = document.createElement("canvas");
-          off.width = BOARD_SIZE; off.height = BOARD_SIZE;
+          off.width = BOARD_SIZE;
+          off.height = BOARD_SIZE;
           const c = off.getContext("2d");
 
           const frameGrad = c.createLinearGradient(0, 0, BOARD_SIZE, BOARD_SIZE);
@@ -448,26 +895,44 @@
           c.strokeStyle = "rgba(120, 72, 28, 0.055)";
           c.lineWidth = 1;
           for (let y = FRAME_W; y < PLAY_MAX; y += 4) {
-            c.beginPath(); c.moveTo(FRAME_W, y); c.lineTo(PLAY_MAX, y); c.stroke();
+            c.beginPath();
+            c.moveTo(FRAME_W, y);
+            c.lineTo(PLAY_MAX, y);
+            c.stroke();
           }
 
           c.strokeStyle = "#8b261d";
           c.lineWidth = 2.2;
-          c.beginPath(); c.arc(300, 300, 58, 0, Math.PI * 2); c.stroke();
+          c.beginPath();
+          c.arc(300, 300, 58, 0, Math.PI * 2);
+          c.stroke();
+
           c.strokeStyle = "rgba(139, 38, 29, 0.45)";
           c.lineWidth = 1.2;
-          c.beginPath(); c.arc(300, 300, 48, 0, Math.PI * 2); c.stroke();
+          c.beginPath();
+          c.arc(300, 300, 48, 0, Math.PI * 2);
+          c.stroke();
 
           c.fillStyle = "#b91c1c";
-          c.beginPath(); c.arc(300, 300, 14, 0, Math.PI * 2); c.fill();
+          c.beginPath();
+          c.arc(300, 300, 14, 0, Math.PI * 2);
+          c.fill();
 
           const drawBaseline = (x1, y1, x2, y2) => {
-            c.strokeStyle = "#1e293b"; c.lineWidth = 1.6;
-            c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
-            [ [x1, y1], [x2, y2] ].forEach(([cx, cy]) => {
+            c.strokeStyle = "#1e293b";
+            c.lineWidth = 1.6;
+            c.beginPath();
+            c.moveTo(x1, y1);
+            c.lineTo(x2, y2);
+            c.stroke();
+            [[x1, y1], [x2, y2]].forEach(([cx, cy]) => {
               c.fillStyle = "#dc2626";
-              c.beginPath(); c.arc(cx, cy, 10.5, 0, Math.PI * 2); c.fill();
-              c.strokeStyle = "#fff"; c.lineWidth = 1.2; c.stroke();
+              c.beginPath();
+              c.arc(cx, cy, 10.5, 0, Math.PI * 2);
+              c.fill();
+              c.strokeStyle = "#fff";
+              c.lineWidth = 1.2;
+              c.stroke();
             });
           };
           drawBaseline(155, 488, 445, 488);
@@ -475,13 +940,15 @@
           drawBaseline(112, 155, 112, 445);
           drawBaseline(488, 155, 488, 445);
 
-          POCKETS.forEach(p => {
+          POCKETS.forEach((p) => {
             const pGrad = c.createRadialGradient(p.x - 3, p.y - 3, 4, p.x, p.y, POCKET_R);
             pGrad.addColorStop(0, "#05070a");
             pGrad.addColorStop(0.85, "#11161f");
             pGrad.addColorStop(1, "#2b1810");
             c.fillStyle = pGrad;
-            c.beginPath(); c.arc(p.x, p.y, POCKET_R, 0, Math.PI * 2); c.fill();
+            c.beginPath();
+            c.arc(p.x, p.y, POCKET_R, 0, Math.PI * 2);
+            c.fill();
           });
 
           return off;
@@ -491,7 +958,9 @@
           this.scores = { white: 0, black: 0 };
           this.turn = "white";
           this.queenState = "board";
+          this.queenPendingGrace = false;
           this.roundEndedNoWinner = false;
+          this.matchOver = false;
           this.pocketRipples = [];
           this.sinkingPieces = [];
           this.shockwaves = [];
@@ -505,7 +974,11 @@
             this.pieces.push({
               x: 300 + Math.cos(a) * (COIN_R * 2.05),
               y: 300 + Math.sin(a) * (COIN_R * 2.05),
-              vx: 0, vy: 0, r: COIN_R, type: t, active: true
+              vx: 0,
+              vy: 0,
+              r: COIN_R,
+              type: t,
+              active: true
             });
           });
 
@@ -518,50 +991,47 @@
             this.pieces.push({
               x: 300 + Math.cos(a) * (COIN_R * 4.1),
               y: 300 + Math.sin(a) * (COIN_R * 4.1),
-              vx: 0, vy: 0, r: COIN_R, type: t, active: true
+              vx: 0,
+              vy: 0,
+              r: COIN_R,
+              type: t,
+              active: true
             });
           });
 
           this.striker = { x: 300, y: 488, vx: 0, vy: 0, r: STRIKER_R, type: "striker", active: true };
           this.resetStrikerPosition(false);
-          this.updatePowerMeter(0);
           this.updateHUD();
         }
 
-        updatePowerMeter(ratio) {
-          const pct = Math.round(Math.max(0, Math.min(1, ratio)) * 100);
-          const fill = document.getElementById("power-fill");
-          const label = document.getElementById("power-pct");
-          if (fill) fill.style.width = `${pct}%`;
-          if (label) label.textContent = `${pct}%`;
-        }
-
         resetStrikerPosition(triggerAI = true) {
+          if (this.matchOver || this.roundEndedNoWinner) return;
           this.isMoving = false;
           this.pocketedThisTurn = [];
           this.remoteAim = null;
           this.striker.active = true;
-          this.striker.vx = 0; this.striker.vy = 0;
+          this.striker.vx = 0;
+          this.striker.vy = 0;
           this.striker.x = 300;
           this.striker.y = this.turn === "white" ? 488 : 112;
           document.getElementById("striker-pos").value = 300;
+          document.getElementById("power-fill").style.width = "0%";
           this.updateHUD();
 
-          if (triggerAI && this.mode === "AI" && this.turn === "black" && !this.roundEndedNoWinner) {
+          if (triggerAI && this.mode === "AI" && this.turn === "black") {
             setTimeout(() => {
-              if (this.mode === "AI" && this.turn === "black" && !this.isMoving && !this.roundEndedNoWinner) {
+              if (this.mode === "AI" && this.turn === "black" && !this.isMoving && !this.matchOver) {
                 this.executeAITurn();
               }
-            }, 700);
+            }, 680);
           }
         }
 
         isLocalTurn() {
-          if (this.roundEndedNoWinner || this.isMoving) return false;
+          if (this.isMoving || this.matchOver || this.roundEndedNoWinner) return false;
           if (this.mode === "PVP") return true;
           if (this.mode === "AI") return this.turn === "white";
           if (this.mode === "ONLINE") {
-            if (!this.matchStarted) return false;
             return (this.onlineRole === "HOST" && this.turn === "white") ||
                    (this.onlineRole === "GUEST" && this.turn === "black");
           }
@@ -601,7 +1071,6 @@
             if (dist <= this.striker.r + 24) {
               this.isAiming = true;
               this.aimVec = { x: 0, y: 0 };
-              this.updatePowerMeter(0);
             }
           };
 
@@ -618,7 +1087,8 @@
               dy = (dy / mag) * maxPull;
             }
             this.aimVec = { x: dx, y: dy };
-            this.updatePowerMeter(Math.hypot(dx, dy) / maxPull);
+            const ratio = Math.min(1, Math.hypot(dx, dy) / maxPull);
+            document.getElementById("power-fill").style.width = `${Math.round(ratio * 100)}%`;
             this.broadcastState({ type: "AIM", vec: this.aimVec });
           };
 
@@ -626,13 +1096,13 @@
             if (!this.isAiming) return;
             this.isAiming = false;
             const mag = Math.hypot(this.aimVec.x, this.aimVec.y);
-            this.updatePowerMeter(0);
             if (mag > 14) {
               const vx = this.aimVec.x * 0.24;
               const vy = this.aimVec.y * 0.24;
               this.launchStriker(this.striker.x, vx, vy, true);
             }
             this.aimVec = { x: 0, y: 0 };
+            document.getElementById("power-fill").style.width = "0%";
           };
 
           this.canvas.addEventListener("mousedown", onDown);
@@ -667,8 +1137,13 @@
         }
 
         executeAITurn() {
-          if (this.turn !== "black" || this.mode !== "AI" || this.roundEndedNoWinner) return;
-          const targets = this.pieces.filter(p => p.active && (p.type === "black" || p.type === "queen"));
+          if (this.turn !== "black" || this.mode !== "AI" || this.matchOver || this.roundEndedNoWinner) return;
+          const needsCover = this.queenState === "pending_black";
+          const targets = this.pieces.filter((p) => {
+            if (!p.active) return false;
+            if (needsCover) return p.type === "black";
+            return p.type === "black" || p.type === "queen";
+          });
           if (!targets.length) return;
           const target = targets[Math.floor(Math.random() * targets.length)];
           const strikerX = Math.max(165, Math.min(435, target.x + (Math.random() * 44 - 22)));
@@ -684,6 +1159,41 @@
               x, y, r: piece.r, type: piece.type, scale: 1, alpha: 1
             });
           }
+        }
+
+        returnQueenToCenter() {
+          const queen = this.pieces.find((p) => p.type === "queen");
+          if (!queen) return;
+          queen.active = true;
+          queen.vx = 0;
+          queen.vy = 0;
+
+          // Find nearest free spot around center (300, 300)
+          const occupied = this.pieces.filter((p) => p.active && p !== queen);
+          let placedX = 300;
+          let placedY = 300;
+          const isFree = (cx, cy) => occupied.every((o) => Math.hypot(o.x - cx, o.y - cy) >= queen.r + o.r + 1);
+
+          if (!isFree(placedX, placedY)) {
+            let found = false;
+            for (let radius = 8; radius <= 70 && !found; radius += 6) {
+              for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+                const tx = 300 + Math.cos(a) * radius;
+                const ty = 300 + Math.sin(a) * radius;
+                if (isFree(tx, ty)) {
+                  placedX = tx;
+                  placedY = ty;
+                  found = true;
+                  break;
+                }
+              }
+            }
+          }
+
+          queen.x = placedX;
+          queen.y = placedY;
+          this.queenState = "board";
+          this.queenPendingGrace = false;
         }
 
         stepPhysics() {
@@ -702,16 +1212,16 @@
           for (let i = this.shockwaves.length - 1; i >= 0; i--) {
             const sw = this.shockwaves[i];
             sw.r += 2.2;
-            sw.alpha -= 0.05;
+            sw.alpha -= 0.045;
             if (sw.alpha <= 0) this.shockwaves.splice(i, 1);
           }
 
-          if (!this.isMoving || this.roundEndedNoWinner) return;
-          const all = [...this.pieces.filter(p => p.active)];
+          if (!this.isMoving) return;
+          const all = [...this.pieces.filter((p) => p.active)];
           if (this.striker.active) all.push(this.striker);
 
           for (let s = 0; s < SUB_STEPS; s++) {
-            all.forEach(b => {
+            all.forEach((b) => {
               b.x += b.vx / SUB_STEPS;
               b.y += b.vy / SUB_STEPS;
 
@@ -730,15 +1240,19 @@
                 if (dist > 0 && dist < minDist) {
                   const nx = dx / dist, ny = dy / dist;
                   const overlap = minDist - dist;
-                  a.x -= nx * overlap * 0.5; a.y -= ny * overlap * 0.5;
-                  b.x += nx * overlap * 0.5; b.y += ny * overlap * 0.5;
+                  a.x -= nx * overlap * 0.5;
+                  a.y -= ny * overlap * 0.5;
+                  b.x += nx * overlap * 0.5;
+                  b.y += ny * overlap * 0.5;
 
                   const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
                   const velAlongNormal = rvx * nx + rvy * ny;
                   if (velAlongNormal < 0) {
                     const imp = -(1 + RESTITUTION) * velAlongNormal * 0.5;
-                    a.vx -= imp * nx; a.vy -= imp * ny;
-                    b.vx += imp * nx; b.vy += imp * ny;
+                    a.vx -= imp * nx;
+                    a.vy -= imp * ny;
+                    b.vx += imp * nx;
+                    b.vy += imp * ny;
                     if (s === 0 && Math.abs(velAlongNormal) > 1.5) {
                       AudioFX.clack(Math.min(1, Math.abs(velAlongNormal) / 18));
                     }
@@ -749,16 +1263,21 @@
           }
 
           let anyMoving = false;
-          all.forEach(b => {
+          all.forEach((b) => {
             b.vx *= FRICTION;
             b.vy *= FRICTION;
-            if (Math.hypot(b.vx, b.vy) < 0.08) { b.vx = 0; b.vy = 0; }
-            else { anyMoving = true; }
+            if (Math.hypot(b.vx, b.vy) < 0.08) {
+              b.vx = 0;
+              b.vy = 0;
+            } else {
+              anyMoving = true;
+            }
 
-            POCKETS.forEach(p => {
+            POCKETS.forEach((p) => {
               if (b.active && Math.hypot(b.x - p.x, b.y - p.y) < POCKET_R - 2) {
                 b.active = false;
-                b.vx = 0; b.vy = 0;
+                b.vx = 0;
+                b.vy = 0;
                 this.pocketedThisTurn.push(b.type);
                 this.spawnPocketFX(p.x, p.y, b);
                 AudioFX.pocket();
@@ -778,10 +1297,11 @@
           let keepTurn = false;
 
           const strikerFoul = this.pocketedThisTurn.includes("striker");
-          const myCoins = this.pocketedThisTurn.filter(t => t === activeShooter).length;
-          const oppCoins = this.pocketedThisTurn.filter(t => t === oppColor).length;
-          const gotQueen = this.pocketedThisTurn.includes("queen");
+          const myCoins = this.pocketedThisTurn.filter((t) => t === activeShooter).length;
+          const oppCoins = this.pocketedThisTurn.filter((t) => t === oppColor).length;
+          const queenPocketedNow = this.pocketedThisTurn.includes("queen");
 
+          // Standard coin scoring
           if (myCoins > 0) {
             this.scores[activeShooter] += myCoins * 10;
             keepTurn = true;
@@ -789,39 +1309,94 @@
           if (oppCoins > 0) {
             this.scores[oppColor] += oppCoins * 10;
           }
-          if (gotQueen) {
-            this.scores[activeShooter] += 30;
-            keepTurn = true;
-          }
           if (strikerFoul) {
             this.scores[activeShooter] = Math.max(0, this.scores[activeShooter] - 10);
             keepTurn = false;
           }
 
+          // Red Queen Cover Rules:
+          // 1) If Queen is pocketed now:
+          //    - If striker fouled or opponent coin pocketed with foul, return Queen to center.
+          //    - If shooter also pocketed their own coin in the same shot (and no striker foul), Queen is immediately covered (+30).
+          //    - Otherwise Queen becomes pending for shooter's next shot (1 grace shot).
+          if (queenPocketedNow) {
+            if (strikerFoul) {
+              this.returnQueenToCenter();
+            } else if (myCoins > 0) {
+              this.queenState = "covered";
+              this.queenPendingGrace = false;
+              this.scores[activeShooter] += 30;
+              keepTurn = true;
+            } else {
+              this.queenState = activeShooter === "white" ? "pending_white" : "pending_black";
+              this.queenPendingGrace = true;
+              keepTurn = true; // Shooter gets follow-up shot to cover Queen
+            }
+          } else if (
+            (this.queenState === "pending_white" && activeShooter === "white") ||
+            (this.queenState === "pending_black" && activeShooter === "black")
+          ) {
+            // Shooter is attempting to cover Queen on this shot
+            if (!strikerFoul && myCoins > 0) {
+              this.queenState = "covered";
+              this.queenPendingGrace = false;
+              this.scores[activeShooter] += 30;
+              keepTurn = true;
+            } else {
+              // Failed to cover Queen -> return Queen to center & pass turn
+              this.returnQueenToCenter();
+              keepTurn = false;
+            }
+          }
+
           const nextTurn = keepTurn ? activeShooter : oppColor;
 
-          if (this.mode === "ONLINE") {
-            if (this.onlineRole === "HOST") {
-              this.turn = nextTurn;
-              this.resetStrikerPosition(false);
+          // Check Match Victory Condition (all white or all black coins cleared, and Queen not pending cover)
+          const remainingWhite = this.pieces.filter((p) => p.active && p.type === "white").length;
+          const remainingBlack = this.pieces.filter((p) => p.active && p.type === "black").length;
+
+          if (this.queenState.startsWith("pending_") && (remainingWhite === 0 || remainingBlack === 0)) {
+            this.returnQueenToCenter();
+          }
+
+          const winner =
+            remainingWhite === 0 ? "white" :
+            remainingBlack === 0 ? "black" : null;
+
+          if (winner) {
+            this.matchOver = true;
+            if (this.mode === "ONLINE" && this.onlineRole === "HOST") {
               this.broadcastState({
-                type: "BOARD_SYNC",
-                turn: this.turn,
+                type: "MATCH_WIN",
+                winner,
                 scores: this.scores,
-                pieces: this.pieces.map(p => ({ x: p.x, y: p.y, active: p.active }))
-              });
-            } else {
-              // Guest sends final shot positions so Host has exact snapshot if Guest shot
-              this.turn = nextTurn;
-              this.resetStrikerPosition(false);
-              this.broadcastState({
-                type: "GUEST_SHOT_END",
-                pieces: this.pieces.map(p => ({ x: p.x, y: p.y, active: p.active }))
+                queenState: this.queenState,
+                pieces: this.pieces.map((p) => ({ x: p.x, y: p.y, active: p.active }))
               });
             }
-          } else {
+            this.updateHUD();
+            if (this.callbacks.onMatchWin) {
+              this.callbacks.onMatchWin(winner, this.scores);
+            }
+            return;
+          }
+
+          if (this.mode === "ONLINE" && this.onlineRole === "HOST") {
+            this.turn = nextTurn;
+            this.resetStrikerPosition(false);
+            this.broadcastState({
+              type: "TURN_SYNC",
+              turn: this.turn,
+              scores: this.scores,
+              queenState: this.queenState,
+              pieces: this.pieces.map((p) => ({ x: p.x, y: p.y, active: p.active }))
+            });
+          } else if (this.mode !== "ONLINE") {
             this.turn = nextTurn;
             this.resetStrikerPosition(true);
+          } else {
+            this.turn = nextTurn;
+            this.resetStrikerPosition(false);
           }
         }
 
@@ -832,19 +1407,11 @@
           const badge = document.getElementById("turn-indicator");
           const p1Box = document.getElementById("p1-box");
           const p2Box = document.getElementById("p2-box");
-
-          badge.classList.remove("black-turn", "ended-state");
-
-          if (this.roundEndedNoWinner) {
-            badge.textContent = "ROUND ENDED • NO WINNER";
-            badge.classList.add("ended-state");
-            p1Box.classList.remove("dimmed");
-            p2Box.classList.remove("dimmed");
-            return;
-          }
+          const qPill = document.getElementById("queen-status");
 
           if (this.turn === "white") {
             badge.textContent = "WHITE'S TURN";
+            badge.classList.remove("black-turn");
             p1Box.classList.remove("dimmed");
             p2Box.classList.add("dimmed");
           } else {
@@ -852,6 +1419,16 @@
             badge.classList.add("black-turn");
             p1Box.classList.add("dimmed");
             p2Box.classList.remove("dimmed");
+          }
+
+          if (this.queenState === "board") {
+            qPill.textContent = "QUEEN: ON BOARD";
+          } else if (this.queenState === "pending_white") {
+            qPill.textContent = "QUEEN: WHITE COVER NEEDED";
+          } else if (this.queenState === "pending_black") {
+            qPill.textContent = "QUEEN: BLACK COVER NEEDED";
+          } else {
+            qPill.textContent = "QUEEN: COVERED (+30)";
           }
         }
 
@@ -907,17 +1484,17 @@
 
           ctx.drawImage(this.boardTex, 0, 0);
 
-          this.shockwaves.forEach(sw => {
+          this.shockwaves.forEach((sw) => {
             ctx.save();
             ctx.beginPath();
             ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(34, 211, 238, ${sw.alpha})`;
+            ctx.strokeStyle = `rgba(245, 158, 11, ${sw.alpha * 0.65})`;
             ctx.lineWidth = 2;
             ctx.stroke();
             ctx.restore();
           });
 
-          this.pocketRipples.forEach(rp => {
+          this.pocketRipples.forEach((rp) => {
             ctx.save();
             ctx.beginPath();
             ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
@@ -927,7 +1504,7 @@
             ctx.restore();
           });
 
-          this.sinkingPieces.forEach(sp => {
+          this.sinkingPieces.forEach((sp) => {
             this.drawPieceDisk(ctx, sp.x, sp.y, sp.r * sp.scale, sp.type, sp.alpha);
           });
 
@@ -945,12 +1522,12 @@
             ctx.restore();
           }
 
-          this.pieces.forEach(p => {
+          this.pieces.forEach((p) => {
             if (!p.active) return;
             this.drawPieceDisk(ctx, p.x, p.y, p.r, p.type, 1);
           });
 
-          if (this.striker && this.striker.active) {
+          if (this.striker && this.striker.active && !this.matchOver && !this.roundEndedNoWinner) {
             if (this.isLocalTurn() && !this.isMoving) {
               ctx.save();
               ctx.beginPath();
@@ -972,224 +1549,154 @@
           requestAnimationFrame(() => this.loop());
         }
 
-        cleanupOnlineTimers() {
-          if (this.heartbeatTimer) { clearInterval(this.heartbeatTimer); this.heartbeatTimer = null; }
-          if (this.disconnectWatchTimer) { clearInterval(this.disconnectWatchTimer); this.disconnectWatchTimer = null; }
-          if (this.handshakeTimer) { clearInterval(this.handshakeTimer); this.handshakeTimer = null; }
-        }
-
-        endRoundNoWinner(reasonText) {
-          if (this.roundEndedNoWinner) return;
+        endRoundNoWinner(reason) {
+          if (this.roundEndedNoWinner || this.matchOver) return;
           this.roundEndedNoWinner = true;
-          this.matchStarted = false;
           this.isMoving = false;
           this.isAiming = false;
-          this.updatePowerMeter(0);
-          this.cleanupOnlineTimers();
+          if (this.callbacks.onRoundEndedNoWinner) {
+            this.callbacks.onRoundEndedNoWinner(reason);
+          }
+        }
+
+        async cleanupOnline() {
           if (this.channel && supabase) {
-            supabase.removeChannel(this.channel);
+            try {
+              await supabase.removeChannel(this.channel);
+            } catch (_) {}
             this.channel = null;
           }
           if (this.localBus) {
             this.localBus.close();
             this.localBus = null;
           }
-          this.updateHUD();
-          if (typeof this.onRoundEndedNoWinner === "function") {
-            this.onRoundEndedNoWinner(
-              "Round Ended — No Winner",
-              `${reasonText} The live match has been closed without a win or loss.`
-            );
-          }
-        }
-
-        handleNetworkPayload(payload) {
-          if (!payload || !payload.type) return;
-          this.lastPeerHeartbeat = Date.now();
-
-          if (payload.type === "HEARTBEAT") {
-            return;
-          }
-          if (payload.type === "PLAYER_LEFT") {
-            if (this.matchStarted) {
-              this.endRoundNoWinner("Your opponent went offline or left the live room.");
-            }
-            return;
-          }
-          if (payload.type === "GUEST_HELLO" && this.onlineRole === "HOST") {
-            if (!this.matchStarted) {
-              this.matchStarted = true;
-              if (this.handshakeTimer) { clearInterval(this.handshakeTimer); this.handshakeTimer = null; }
-              document.getElementById("online-modal").classList.remove("open");
-              document.getElementById("p2-name").textContent = "Black (Friend)";
-              this.initMatch();
-            }
-            this.broadcastState({
-              type: "HOST_ACK_START",
-              pieces: this.pieces.map(p => ({ x: p.x, y: p.y, active: p.active }))
-            });
-            return;
-          }
-          if (payload.type === "HOST_ACK_START" && this.onlineRole === "GUEST") {
-            if (!this.matchStarted) {
-              this.matchStarted = true;
-              if (this.handshakeTimer) { clearInterval(this.handshakeTimer); this.handshakeTimer = null; }
-              document.getElementById("online-modal").classList.remove("open");
-              document.getElementById("p1-name").textContent = "White (Host)";
-              document.getElementById("p2-name").textContent = "Black (You)";
-              this.initMatch();
-            }
-            if (Array.isArray(payload.pieces)) {
-              payload.pieces.forEach((sp, idx) => {
-                if (this.pieces[idx]) {
-                  this.pieces[idx].x = sp.x;
-                  this.pieces[idx].y = sp.y;
-                  this.pieces[idx].active = sp.active;
-                }
-              });
-            }
-            return;
-          }
-          if (payload.type === "SLIDE") {
-            this.striker.x = payload.x;
-          } else if (payload.type === "AIM") {
-            this.remoteAim = payload.vec;
-          } else if (payload.type === "SHOOT") {
-            if (payload.turn) this.turn = payload.turn;
-            this.launchStriker(payload.x, payload.vx, payload.vy, false);
-            if (typeof payload.y === "number") this.striker.y = payload.y;
-          } else if (payload.type === "GUEST_SHOT_END" && this.onlineRole === "HOST") {
-            if (Array.isArray(payload.pieces)) {
-              payload.pieces.forEach((sp, idx) => {
-                if (this.pieces[idx]) {
-                  this.pieces[idx].x = sp.x;
-                  this.pieces[idx].y = sp.y;
-                  this.pieces[idx].active = sp.active;
-                }
-              });
-            }
-            this.broadcastState({
-              type: "BOARD_SYNC",
-              turn: this.turn,
-              scores: this.scores,
-              pieces: this.pieces.map(p => ({ x: p.x, y: p.y, active: p.active }))
-            });
-          } else if (payload.type === "BOARD_SYNC") {
-            this.turn = payload.turn;
-            this.scores = payload.scores;
-            if (Array.isArray(payload.pieces)) {
-              payload.pieces.forEach((sp, idx) => {
-                if (this.pieces[idx]) {
-                  this.pieces[idx].x = sp.x;
-                  this.pieces[idx].y = sp.y;
-                  this.pieces[idx].active = sp.active;
-                }
-              });
-            }
-            this.resetStrikerPosition(false);
-          }
-        }
-
-        startOnlineLoops(role) {
-          this.lastPeerHeartbeat = Date.now();
-
-          if (role === "GUEST") {
-            this.broadcastState({ type: "GUEST_HELLO" });
-            this.handshakeTimer = setInterval(() => {
-              if (!this.matchStarted && !this.roundEndedNoWinner) {
-                this.broadcastState({ type: "GUEST_HELLO" });
-              }
-            }, 900);
-          }
-
-          this.heartbeatTimer = setInterval(() => {
-            if (this.mode === "ONLINE" && this.matchStarted && !this.roundEndedNoWinner) {
-              this.broadcastState({ type: "HEARTBEAT" });
-            }
-          }, 2500);
-
-          this.disconnectWatchTimer = setInterval(() => {
-            if (this.mode === "ONLINE" && this.matchStarted && !this.roundEndedNoWinner) {
-              if (Date.now() - this.lastPeerHeartbeat > 10000) {
-                this.endRoundNoWinner("Opponent connection timed out or went offline.");
-              }
-            }
-          }, 2000);
+          this.opponentJoined = false;
+          this.roomCode = null;
+          this.onlineRole = null;
         }
 
         async connectRoom(code, role) {
-          this.cleanupOnlineTimers();
-          if (this.channel && supabase) {
-            await supabase.removeChannel(this.channel);
-            this.channel = null;
-          }
-          if (this.localBus) {
-            this.localBus.close();
-            this.localBus = null;
-          }
-
+          await this.cleanupOnline();
           this.roomCode = code;
           this.onlineRole = role;
           this.mode = "ONLINE";
-          this.matchStarted = false;
           this.roundEndedNoWinner = false;
-          this.lastPeerHeartbeat = Date.now();
+          this.matchOver = false;
 
-          if ("BroadcastChannel" in window) {
-            this.localBus = new BroadcastChannel(`carrom_local_${code}`);
-            this.localBus.onmessage = (ev) => this.handleNetworkPayload(ev.data);
-          }
+          const handleSync = (payload) => {
+            if (!payload || this.roundEndedNoWinner) return;
 
-          if (!supabase) {
-            this.startOnlineLoops(role);
-            return;
-          }
-
-          return new Promise((resolve, reject) => {
-            let settled = false;
-            const timeoutId = setTimeout(() => {
-              if (!settled) {
-                settled = true;
-                reject(new Error("Connection timed out. Check your Supabase Key & Internet."));
+            if (payload.type === "PLAYER_JOINED" && this.onlineRole === "HOST") {
+              this.opponentJoined = true;
+              this.initMatch();
+              this.broadcastState({
+                type: "MATCH_START",
+                turn: this.turn,
+                scores: this.scores,
+                queenState: this.queenState,
+                pieces: this.pieces.map((p) => ({ x: p.x, y: p.y, active: p.active }))
+              });
+              if (this.callbacks.onMatchConnected) {
+                this.callbacks.onMatchConnected("HOST");
               }
-            }, 8000);
+            } else if (payload.type === "MATCH_START" && this.onlineRole === "GUEST") {
+              this.opponentJoined = true;
+              this.turn = payload.turn || "white";
+              this.scores = payload.scores || { white: 0, black: 0 };
+              this.queenState = payload.queenState || "board";
+              if (Array.isArray(payload.pieces)) {
+                payload.pieces.forEach((ps, idx) => {
+                  if (this.pieces[idx]) {
+                    this.pieces[idx].x = ps.x;
+                    this.pieces[idx].y = ps.y;
+                    this.pieces[idx].active = ps.active;
+                  }
+                });
+              }
+              this.resetStrikerPosition(false);
+              if (this.callbacks.onMatchConnected) {
+                this.callbacks.onMatchConnected("GUEST");
+              }
+            } else if (payload.type === "SLIDE") {
+              this.striker.x = payload.x;
+            } else if (payload.type === "AIM") {
+              this.remoteAim = payload.vec;
+            } else if (payload.type === "SHOOT") {
+              if (payload.turn) this.turn = payload.turn;
+              this.launchStriker(payload.x, payload.vx, payload.vy, false);
+              if (typeof payload.y === "number") this.striker.y = payload.y;
+            } else if (payload.type === "TURN_SYNC") {
+              this.turn = payload.turn;
+              this.scores = payload.scores;
+              if (payload.queenState) this.queenState = payload.queenState;
+              if (Array.isArray(payload.pieces)) {
+                payload.pieces.forEach((ps, idx) => {
+                  if (this.pieces[idx]) {
+                    this.pieces[idx].x = ps.x;
+                    this.pieces[idx].y = ps.y;
+                    this.pieces[idx].active = ps.active;
+                  }
+                });
+              }
+              this.resetStrikerPosition(false);
+            } else if (payload.type === "MATCH_WIN") {
+              this.matchOver = true;
+              this.scores = payload.scores || this.scores;
+              if (Array.isArray(payload.pieces)) {
+                payload.pieces.forEach((ps, idx) => {
+                  if (this.pieces[idx]) {
+                    this.pieces[idx].x = ps.x;
+                    this.pieces[idx].y = ps.y;
+                    this.pieces[idx].active = ps.active;
+                  }
+                });
+              }
+              this.updateHUD();
+              if (this.callbacks.onMatchWin) {
+                this.callbacks.onMatchWin(payload.winner, this.scores);
+              }
+            } else if (payload.type === "PLAYER_LEFT") {
+              this.endRoundNoWinner("Opponent disconnected or went offline. Round ended with No Winner.");
+            }
+          };
 
+          if (typeof BroadcastChannel !== "undefined") {
+            this.localBus = new BroadcastChannel(`nexora_carrom_${code}`);
+            this.localBus.onmessage = (ev) => handleSync(ev.data);
+          }
+
+          if (supabase) {
             this.channel = supabase.channel(`carrom_room_${code}`, {
               config: {
-                broadcast: { self: false, ack: false },
-                presence: { key: `${role}_${Math.random().toString(36).slice(2, 6)}` }
+                broadcast: { self: false },
+                presence: { key: `${role}_${Math.random().toString(36).slice(2, 7)}` }
               }
             });
 
             this.channel
-              .on("broadcast", { event: "game_sync" }, ({ payload }) => {
-                this.handleNetworkPayload(payload);
-              })
+              .on("broadcast", { event: "game_sync" }, ({ payload }) => handleSync(payload))
               .on("presence", { event: "leave" }, () => {
-                if (this.matchStarted && !this.roundEndedNoWinner) {
-                  this.endRoundNoWinner("Your opponent disconnected from the room.");
+                if (this.opponentJoined && !this.matchOver && !this.roundEndedNoWinner) {
+                  this.endRoundNoWinner("Opponent went offline. Round ended with No Winner.");
                 }
               })
               .subscribe(async (status) => {
                 if (status === "SUBSCRIBED") {
-                  if (!settled) { settled = true; clearTimeout(timeoutId); resolve(); }
-                  try { await this.channel.track({ role, online_at: Date.now() }); } catch (_) {}
-                  this.startOnlineLoops(role);
-                } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-                  if (!settled) {
-                    settled = true;
-                    clearTimeout(timeoutId);
-                    reject(new Error("Failed to join Supabase channel. Verify your Anon Key."));
-                  } else if (this.matchStarted && !this.roundEndedNoWinner) {
-                    this.endRoundNoWinner("Realtime room connection was lost.");
+                  await this.channel.track({ role, joinedAt: Date.now() });
+                  if (role === "GUEST") {
+                    this.broadcastState({ type: "PLAYER_JOINED" });
                   }
+                } else if ((status === "CHANNEL_ERROR" || status === "TIMED_OUT") && this.opponentJoined && !this.matchOver) {
+                  this.endRoundNoWinner("Connection lost. Round ended with No Winner.");
                 }
               });
-          });
+          } else if (role === "GUEST") {
+            this.broadcastState({ type: "PLAYER_JOINED" });
+          }
         }
 
         broadcastState(payload) {
-          if (this.mode !== "ONLINE" || this.roundEndedNoWinner) return;
+          if (this.mode !== "ONLINE") return;
           if (this.localBus) {
             try { this.localBus.postMessage(payload); } catch (_) {}
           }
@@ -1203,146 +1710,136 @@
         }
       }
 
-      const game = new CarromEngine(document.getElementById("board"));
+      // =========================================================
+      // UI CONTROLLERS & NAVIGATION
+      // =========================================================
+      const homeScreen = document.getElementById("home-screen");
+      const onlineWarnModal = document.getElementById("online-warning-modal");
+      const onlineModal = document.getElementById("online-modal");
+      const infoModal = document.getElementById("info-modal");
+      const victoryModal = document.getElementById("victory-modal");
+
+      const openInfo = (title, msg) => {
+        document.getElementById("info-title").textContent = title;
+        document.getElementById("info-message").textContent = msg;
+        infoModal.classList.add("open");
+      };
+
+      const closeVictory = () => {
+        victoryModal.classList.remove("open");
+        ConfettiFX.stop();
+      };
+
+      const game = new CarromEngine(document.getElementById("board"), {
+        onMatchConnected: (role) => {
+          onlineModal.classList.remove("open");
+          if (role === "HOST") {
+            document.getElementById("p1-name").textContent = "White (You)";
+            document.getElementById("p2-name").textContent = "Black (Opponent)";
+          } else {
+            document.getElementById("p1-name").textContent = "White (Host)";
+            document.getElementById("p2-name").textContent = "Black (You)";
+          }
+        },
+        onRoundEndedNoWinner: (reason) => {
+          openInfo("Round Ended — No Winner", reason);
+        },
+        onMatchWin: (winner, scores) => {
+          AudioFX.fanfare();
+          ConfettiFX.start();
+          const winnerLabel = winner === "white" ? "WHITE CHAMPION!" : "BLACK CHAMPION!";
+          document.getElementById("winner-heading").textContent = winnerLabel;
+          document.getElementById("winner-subtitle").textContent =
+            `Graduated as Carrom Studio Champion with ${scores[winner]} points!`;
+          document.getElementById("final-white-score").textContent = scores.white;
+          document.getElementById("final-black-score").textContent = scores.black;
+          victoryModal.classList.add("open");
+        }
+      });
 
       const setActiveBtn = (id) => {
-        document.querySelectorAll(".modes button").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".modes button").forEach((b) => {
+          if (b.id !== "btn-sound") b.classList.remove("active");
+        });
         const target = document.getElementById(id);
         if (target) target.classList.add("active");
       };
 
-      const homeScreen = document.getElementById("home-screen");
-      const showHomeScreen = () => {
-        if (game.mode === "ONLINE" && game.channel && !game.roundEndedNoWinner) {
+      const enterGameMode = async (mode) => {
+        closeVictory();
+        homeScreen.classList.add("hidden");
+        if (mode === "AI") {
+          await game.cleanupOnline();
+          setActiveBtn("btn-ai");
+          game.mode = "AI";
+          document.getElementById("p1-name").textContent = "White (You)";
+          document.getElementById("p2-name").textContent = "Black (AI)";
+          game.initMatch();
+        } else if (mode === "PVP") {
+          await game.cleanupOnline();
+          setActiveBtn("btn-pvp");
+          game.mode = "PVP";
+          document.getElementById("p1-name").textContent = "White (P1)";
+          document.getElementById("p2-name").textContent = "Black (P2)";
+          game.initMatch();
+        } else if (mode === "ONLINE") {
+          setActiveBtn("btn-online");
+          onlineWarnModal.classList.add("open");
+        }
+      };
+
+      // Home Screen Triggers
+      document.getElementById("home-play-ai").onclick = () => enterGameMode("AI");
+      document.getElementById("home-play-pvp").onclick = () => enterGameMode("PVP");
+      document.getElementById("home-play-online").onclick = () => enterGameMode("ONLINE");
+
+      // Header Controls
+      document.getElementById("btn-home").onclick = async () => {
+        closeVictory();
+        if (game.mode === "ONLINE" && game.opponentJoined && !game.matchOver && !game.roundEndedNoWinner) {
           game.broadcastState({ type: "PLAYER_LEFT" });
         }
-        game.cleanupOnlineTimers();
-        homeScreen.classList.remove("hidden-screen");
-      };
-      const hideHomeScreen = () => {
-        homeScreen.classList.add("hidden-screen");
+        await game.cleanupOnline();
+        homeScreen.classList.remove("hidden");
       };
 
-      const openInfoModal = (title, htmlBody, isDisconnectEnd = false) => {
-        document.getElementById("info-modal-title").textContent = title;
-        document.getElementById("info-modal-body").innerHTML = htmlBody;
-        const contBtn = document.getElementById("btn-info-close");
-        contBtn.textContent = isDisconnectEnd ? "New AI Match" : "Continue";
-        contBtn.onclick = () => {
-          document.getElementById("info-modal").classList.remove("open");
-          if (isDisconnectEnd) {
-            setActiveBtn("btn-ai");
-            game.mode = "AI";
-            document.getElementById("p1-name").textContent = "White (You)";
-            document.getElementById("p2-name").textContent = "Black (AI)";
-            game.initMatch();
-          }
-        };
-        document.getElementById("info-modal").classList.add("open");
+      document.getElementById("btn-ai").onclick = () => enterGameMode("AI");
+      document.getElementById("btn-pvp").onclick = () => enterGameMode("PVP");
+      document.getElementById("btn-online").onclick = () => enterGameMode("ONLINE");
+
+      document.getElementById("btn-sound").onclick = (e) => {
+        const isMuted = AudioFX.toggleMute();
+        e.target.textContent = isMuted ? "Sound: OFF" : "Sound: ON";
       };
 
-      game.onRoundEndedNoWinner = (title, message) => {
-        openInfoModal(title, message, true);
+      // Warning & Online Modal Controls
+      document.getElementById("btn-cancel-online").onclick = () => {
+        onlineWarnModal.classList.remove("open");
       };
 
-      document.getElementById("btn-home").onclick = showHomeScreen;
-      document.getElementById("btn-info-home").onclick = () => {
-        document.getElementById("info-modal").classList.remove("open");
-        showHomeScreen();
-      };
-
-      document.getElementById("btn-mute").onclick = (e) => {
-        const next = !AudioFX.isMuted();
-        AudioFX.setMuted(next);
-        e.target.textContent = next ? "🔇" : "🔊";
-      };
-
-      const openOnlineWarning = () => {
-        document.getElementById("online-warning-modal").classList.add("open");
-      };
-
-      document.getElementById("btn-cancel-warning").onclick = () => {
-        document.getElementById("online-warning-modal").classList.remove("open");
-      };
-
-      document.getElementById("btn-accept-warning").onclick = () => {
-        document.getElementById("online-warning-modal").classList.remove("open");
-        hideHomeScreen();
-        setActiveBtn("btn-online");
+      document.getElementById("btn-accept-online").onclick = () => {
+        onlineWarnModal.classList.remove("open");
         document.getElementById("online-status").textContent = "";
-        document.getElementById("online-modal").classList.add("open");
+        document.getElementById("created-room-area").style.display = "none";
+        onlineModal.classList.add("open");
       };
-
-      document.getElementById("home-btn-ai").onclick = () => {
-        hideHomeScreen();
-        document.getElementById("btn-ai").click();
-      };
-      document.getElementById("home-btn-pvp").onclick = () => {
-        hideHomeScreen();
-        document.getElementById("btn-pvp").click();
-      };
-      document.getElementById("home-btn-online").onclick = openOnlineWarning;
-      document.getElementById("home-btn-rules").onclick = () => {
-        openInfoModal(
-          "Rules & Controls",
-          "Slide to position your striker, pull back from the striker to aim &amp; power your shot, and release to strike. Pocket your coins and cover the Queen. In Online mode, if an opponent disconnects, the round ends immediately with no win or loss.",
-          false
-        );
-      };
-
-      window.addEventListener("beforeunload", () => {
-        if (game.mode === "ONLINE" && game.channel && !game.roundEndedNoWinner) {
-          game.broadcastState({ type: "PLAYER_LEFT" });
-        }
-      });
-
-      document.getElementById("btn-ai").onclick = () => {
-        if (game.mode === "ONLINE" && game.channel && !game.roundEndedNoWinner) {
-          game.broadcastState({ type: "PLAYER_LEFT" });
-        }
-        game.cleanupOnlineTimers();
-        setActiveBtn("btn-ai");
-        game.mode = "AI";
-        document.getElementById("p1-name").textContent = "White (You)";
-        document.getElementById("p2-name").textContent = "Black (AI)";
-        game.initMatch();
-      };
-
-      document.getElementById("btn-pvp").onclick = () => {
-        if (game.mode === "ONLINE" && game.channel && !game.roundEndedNoWinner) {
-          game.broadcastState({ type: "PLAYER_LEFT" });
-        }
-        game.cleanupOnlineTimers();
-        setActiveBtn("btn-pvp");
-        game.mode = "PVP";
-        document.getElementById("p1-name").textContent = "White (P1)";
-        document.getElementById("p2-name").textContent = "Black (P2)";
-        game.initMatch();
-      };
-
-      document.getElementById("btn-online").onclick = openOnlineWarning;
 
       document.getElementById("btn-close-modal").onclick = () => {
-        document.getElementById("online-modal").classList.remove("open");
+        onlineModal.classList.remove("open");
       };
 
       document.getElementById("btn-create-room").onclick = async () => {
         const statusEl = document.getElementById("online-status");
-        try {
-          const code = Math.random().toString(36).substring(2, 7).toUpperCase();
-          document.getElementById("display-room-code").textContent = code;
-          document.getElementById("created-room-area").style.display = "block";
-          statusEl.className = "status-msg";
-          statusEl.textContent = "Waiting for opponent to join...";
-          await game.connectRoom(code, "HOST");
-        } catch (err) {
-          statusEl.className = "status-msg err";
-          statusEl.textContent = err.message;
-        }
+        const code = Math.random().toString(36).substring(2, 7).toUpperCase();
+        document.getElementById("display-room-code").textContent = code;
+        document.getElementById("created-room-area").style.display = "block";
+        statusEl.className = "status-msg";
+        statusEl.textContent = "Waiting for opponent to join...";
+        await game.connectRoom(code, "HOST");
       };
 
       document.getElementById("display-room-code").onclick = (e) => {
-        navigator.clipboard.writeText(e.target.textContent);
+        navigator.clipboard?.writeText(e.target.textContent).catch(() => {});
         document.getElementById("online-status").textContent = "Code copied! Share with your friend.";
       };
 
@@ -1354,14 +1851,25 @@
           statusEl.textContent = "Enter a valid 5-character room code.";
           return;
         }
-        try {
-          statusEl.className = "status-msg";
-          statusEl.textContent = "Connecting to room...";
-          await game.connectRoom(code, "GUEST");
-        } catch (err) {
-          statusEl.className = "status-msg err";
-          statusEl.textContent = err.message;
-        }
+        statusEl.className = "status-msg";
+        statusEl.textContent = "Connecting to room...";
+        await game.connectRoom(code, "GUEST");
+      };
+
+      document.getElementById("btn-info-ok").onclick = () => {
+        infoModal.classList.remove("open");
+      };
+
+      // Victory Controls
+      document.getElementById("btn-play-again").onclick = () => {
+        closeVictory();
+        game.initMatch();
+      };
+
+      document.getElementById("btn-victory-home").onclick = async () => {
+        closeVictory();
+        await game.cleanupOnline();
+        homeScreen.classList.remove("hidden");
       };
     })();
   </script>
