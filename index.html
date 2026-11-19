@@ -537,7 +537,7 @@
   <section id="home-screen">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.1.1</h1>
+      <h1 class="home-title">CARROM STUDIO 0.1.2</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
@@ -1638,7 +1638,9 @@
             iceServers: [
               { urls: "stun:stun.l.google.com:19302" },
               { urls: "stun:stun1.l.google.com:19302" },
-              { urls: "stun:stun2.l.google.com:19302" }
+              { urls: "stun:stun2.l.google.com:19302" },
+              { urls: "stun:stun3.l.google.com:19302" },
+              { urls: "stun:stun4.l.google.com:19302" }
             ]
           });
 
@@ -1655,9 +1657,12 @@
               audioEl.srcObject = event.streams[0];
             } else if (event.track) {
               const inbound = audioEl.srcObject instanceof MediaStream ? audioEl.srcObject : new MediaStream();
-              inbound.addTrack(event.track);
+              const exists = inbound.getTracks().some((t) => t.id === event.track.id);
+              if (!exists) inbound.addTrack(event.track);
               audioEl.srcObject = inbound;
             }
+            audioEl.muted = false;
+            audioEl.volume = 1.0;
             audioEl.play().catch(() => {});
           };
 
@@ -1665,8 +1670,16 @@
             if (event.candidate) {
               this.broadcastState({
                 type: "RTC_ICE",
-                candidate: event.candidate
+                candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate
               });
+            }
+          };
+
+          pc.onconnectionstatechange = () => {
+            if (pc.connectionState === "connected") {
+              this.ensureRemoteAudio().play().catch(() => {});
+            } else if (pc.connectionState === "failed" && this.micEnabled) {
+              this.sendFreshOffer().catch(() => {});
             }
           };
 
@@ -1676,39 +1689,43 @@
 
         async sendFreshOffer() {
           if (this.mode !== "ONLINE") return;
-          const pc = this.createPeerConnection(false);
+          const pc = this.createPeerConnection(true);
           const offer = await pc.createOffer({ offerToReceiveAudio: true });
           await pc.setLocalDescription(offer);
           this.broadcastState({ type: "RTC_OFFER", offer });
         }
 
+        async flushIceCandidates(pc) {
+          if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) return;
+          while (this.pendingIceCandidates.length > 0) {
+            const cand = this.pendingIceCandidates.shift();
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(cand));
+            } catch (_) {}
+          }
+        }
+
         async handleSignaling(payload) {
           if (!payload || this.mode !== "ONLINE") return;
           if (payload.type === "RTC_READY") {
-            if (this.onlineRole === "HOST") {
+            if (this.onlineRole === "HOST" && this.micEnabled) {
               await this.sendFreshOffer();
             } else {
               this.createPeerConnection(false);
             }
-          } else if (payload.type === "RTC_OFFER") {
-            const pc = this.createPeerConnection(false);
+          } else if (payload.type === "RTC_OFFER" && payload.offer) {
+            const pc = this.createPeerConnection(true);
             await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             this.broadcastState({ type: "RTC_ANSWER", answer });
-            for (const cand of this.pendingIceCandidates) {
-              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
-            }
-            this.pendingIceCandidates = [];
+            await this.flushIceCandidates(pc);
             this.ensureRemoteAudio().play().catch(() => {});
-          } else if (payload.type === "RTC_ANSWER") {
+          } else if (payload.type === "RTC_ANSWER" && payload.answer) {
             const pc = this.createPeerConnection(false);
-            if (pc.signalingState === "have-local-offer") {
+            if (pc.signalingState === "have-local-offer" || pc.signalingState === "have-remote-offer") {
               await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
-              for (const cand of this.pendingIceCandidates) {
-                await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
-              }
-              this.pendingIceCandidates = [];
+              await this.flushIceCandidates(pc);
               this.ensureRemoteAudio().play().catch(() => {});
             }
           } else if (payload.type === "RTC_ICE" && payload.candidate) {
@@ -1741,11 +1758,7 @@
                 video: false
               });
               this.micEnabled = true;
-              const pc = this.createPeerConnection(false);
-              this.localStream.getTracks().forEach((track) => {
-                const alreadySending = pc.getSenders().some((s) => s.track === track);
-                if (!alreadySending) pc.addTrack(track, this.localStream);
-              });
+              this.broadcastState({ type: "RTC_READY" });
               await this.sendFreshOffer();
               return { ok: true, enabled: true };
             } catch (_) {
