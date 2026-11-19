@@ -537,7 +537,7 @@
   <section id="home-screen">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.0.9</h1>
+      <h1 class="home-title">CARROM STUDIO 0.1.0</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
@@ -672,10 +672,10 @@
       });
 
       const _SB_URL = "https://qbwfklkicamrlnuhcega.supabase.co";
-      const _SB_KEY = "YOUR_SUPABASE_ANON_KEY";
+      const _SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFid2ZrbGtpY2FtcmxudWhjZWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwNTc5NDIsImV4cCI6MjExMDYzMzk0Mn0.rCyInz8mTdTV5KnHuvDjryrRxS7q28zTCTXGGURFyTE";
 
       let supabase = null;
-      if (window.supabase && _SB_KEY !== "YOUR_SUPABASE_ANON_KEY") {
+      if (window.supabase && _SB_KEY !== "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFid2ZrbGtpY2FtcmxudWhjZWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwNTc5NDIsImV4cCI6MjExMDYzMzk0Mn0.rCyInz8mTdTV5KnHuvDjryrRxS7q28zTCTXGGURFyTE") {
         supabase = window.supabase.createClient(_SB_URL, _SB_KEY);
       }
 
