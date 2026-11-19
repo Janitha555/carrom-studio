@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Carrom Studio — Pro Tabletop</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg-dark: #0f1115;
+      --panel-bg: #181b22;
+      --accent: #e5a93c;
+      --accent-hover: #f3bc55;
+      --text-main: #f4f4f6;
+      --text-muted: #9ca3af;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+    body {
+      background: radial-gradient(circle at top, #1c2029 0%, var(--bg-dark) 100%);
+      color: var(--text-main);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+      min-height: 100vh; overflow: hidden;
+    }
+    header {
+      width: 100%; max-width: 680px; padding: 12px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(24, 27, 34, 0.85); backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .brand { font-weight: 800; letter-spacing: 0.5px; font-size: 1.05rem; color: var(--accent); }
+    .modes { display: flex; gap: 6px; }
+    button {
+      background: #252a34; color: var(--text-main); border: 1px solid rgba(255,255,255,0.08);
+      padding: 7px 12px; border-radius: 8px; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: all 0.18s ease;
+    }
+    button:hover { background: #2f3542; }
+    button.active { background: var(--accent); color: #111; border-color: var(--accent); }
+    .scoreboard {
+      width: 100%; max-width: 540px; display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 20px; margin-top: 6px; background: var(--panel-bg);
+      border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);
+    }
+    .player-box { display: flex; flex-direction: column; gap: 2px; }
+    .player-box.right { text-align: right; }
+    .p-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
+    .p-score { font-size: 1.35rem; font-weight: 800; }
+    .turn-badge {
+      padding: 5px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 700;
+      background: rgba(229, 169, 60, 0.15); color: var(--accent); border: 1px solid rgba(229, 169, 60, 0.35);
+    }
+    #canvas-wrap {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      flex: 1; width: 100%; max-width: 560px; padding: 10px;
+    }
+    canvas {
+      border-radius: 18px; box-shadow: 0 24px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.08);
+      touch-action: none; max-width: 100%; max-height: 100%;
+    }
+    .controls-bar {
+      width: 100%; max-width: 540px; padding: 10px 18px 16px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .slider-row { display: flex; align-items: center; gap: 12px; }
+    .slider-row span { font-size: 0.75rem; color: var(--text-muted); min-width: 65px; }
+    input[type="range"] {
+      flex: 1; accent-color: var(--accent); height: 6px; border-radius: 4px; cursor: pointer;
+    }
+    /* Modal */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px; padding: 22px; width: 100%; max-width: 380px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .modal h3 { font-size: 1.1rem; color: var(--accent); }
+    .modal p { font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; }
+    .room-code-box {
+      background: #0f1115; border: 1px dashed var(--accent); border-radius: 10px;
+      padding: 12px; text-align: center; font-size: 1.5rem; font-weight: 800;
+      letter-spacing: 4px; color: var(--accent); cursor: pointer;
+    }
+    .input-row { display: flex; gap: 8px; }
+    input[type="text"] {
+      flex: 1; background: #0f1115; border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px; padding: 10px 12px; color: #fff; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2px; outline: none;
+    }
+    .status-msg { font-size: 0.8rem; min-height: 18px; color: var(--success); }
+    .status-msg.err { color: var(--danger); }
+  </style>
+</head>
+<body oncontextmenu="return false;">
+
+  <header>
+    <div class="brand">CARROM STUDIO</div>
+    <div class="modes">
+      <button id="btn-ai" class="active">vs AI</button>
+      <button id="btn-pvp">Pass & Play</button>
+      <button id="btn-online">Online</button>
+    </div>
+  </header>
+
+  <div class="scoreboard">
+    <div class="player-box">
+      <span class="p-label" id="p1-name">White (You)</span>
+      <span class="p-score" id="p1-score">0</span>
+    </div>
+    <div class="turn-badge" id="turn-indicator">WHITE'S TURN</div>
+    <div class="player-box right">
+      <span class="p-label" id="p2-name">Black (AI)</span>
+      <span class="p-score" id="p2-score">0</span>
+    </div>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="board" width="600" height="600"></canvas>
+  </div>
+
+  <div class="controls-bar">
+    <div class="slider-row">
+      <span>POSITION</span>
+      <input type="range" id="striker-pos" min="155" max="445" value="300" />
+    </div>
+  </div>
+
+  <!-- Supabase Multiplayer Modal -->
+  <div class="modal-backdrop" id="online-modal">
+    <div class="modal">
+      <h3>Online Multiplayer</h3>
+      <p>Create a private room and share the 5-character code with your friend, or enter a code to join.</p>
+      <button id="btn-create-room" class="active">Create New Room</button>
+      <div id="created-room-area" style="display:none;">
+        <div class="room-code-box" id="display-room-code" title="Click to copy">-----</div>
+      </div>
+      <div class="input-row">
+        <input type="text" id="join-code-input" maxlength="5" placeholder="CODE" />
+        <button id="btn-join-room">Join</button>
+      </div>
+      <div class="status-msg" id="online-status"></div>
+      <button id="btn-close-modal" style="margin-top:4px;">Close</button>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      // Anti-Inspection & Keyboard Shortcut Guard
+      document.addEventListener("keydown", (e) => {
+        if (
+          e.key === "F12" ||
+          (e.ctrlKey && e.shiftKey && ["I", "J", "C"].includes(e.key.toUpperCase())) ||
+          (e.ctrlKey && e.key.toUpperCase() === "U")
+        ) {
+          e.preventDefault();
+        }
+      });
+
+      // =========================================================
+      // SUPABASE CONFIGURATION (Replace with your Anon Public Key)
+      // =========================================================
+      const _SB_URL = "https://qbwfklkicamrlnuhcega.supabase.co";
+      const _SB_KEY = "YOUR_SUPABASE_ANON_KEY";
+
+      let supabase = null;
+      if (window.supabase && _SB_KEY !== "YOUR_SUPABASE_ANON_KEY") {
+        supabase = window.supabase.createClient(_SB_URL, _SB_KEY);
+      }
+
+      // =========================================================
+      // AUDIO SYNTHESIZER (Procedural Web Audio)
+      // =========================================================
+      const AudioFX = (() => {
+        let ctx = null;
+        const init = () => { if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)(); };
+        const clack = (intensity = 0.5) => {
+          try {
+            init();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "triangle";
+            osc.frequency.setValueAtTime(220 + intensity * 180, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(65, ctx.currentTime + 0.06);
+            gain.gain.setValueAtTime(Math.min(0.4, intensity * 0.35), ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.065);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(); osc.stop(ctx.currentTime + 0.07);
+          } catch (_) {}
+        };
+        const pocket = () => {
+          try {
+            init();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(520, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.16);
+            gain.gain.setValueAtTime(0.25, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(); osc.stop(ctx.currentTime + 0.19);
+          } catch (_) {}
+        };
+        return { clack, pocket };
+      })();
+
+      // =========================================================
+      // CORE CARROM PHYSICS & GAME ENGINE (Encapsulated)
+      // =========================================================
+      const BOARD_SIZE = 600;
+      const FRAME_W = 44;
+      const PLAY_MIN = FRAME_W;
+      const PLAY_MAX = BOARD_SIZE - FRAME_W;
+      const POCKET_R = 23;
+      const COIN_R = 14.5;
+      const STRIKER_R = 19.5;
+      const FRICTION = 0.986;
+      const RESTITUTION = 0.88;
+      const SUB_STEPS = 10;
+
+      const POCKETS = [
+        { x: PLAY_MIN + 18, y: PLAY_MIN + 18 },
+        { x: PLAY_MAX - 18, y: PLAY_MIN + 18 },
+        { x: PLAY_MIN + 18, y: PLAY_MAX - 18 },
+        { x: PLAY_MAX - 18, y: PLAY_MAX - 18 }
+      ];
+
+      class CarromEngine {
+        constructor(canvas) {
+          this.canvas = canvas;
+          this.ctx = canvas.getContext("2d");
+          this.boardTex = this.renderWoodBoard();
+
+          this.mode = "AI"; // 'AI' | 'PVP' | 'ONLINE'
+          this.onlineRole = null; // 'HOST' (white) | 'GUEST' (black)
+          this.channel = null;
+          this.roomCode = null;
+
+          this.turn = "white"; // 'white' | 'black'
+          this.scores = { white: 0, black: 0 };
+          this.queenState = "board"; // 'board' | 'pending_white' | 'pending_black' | 'covered'
+          this.pocketedThisTurn = [];
+          this.isMoving = false;
+          this.isAiming = false;
+          this.aimVec = { x: 0, y: 0 };
+          this.remoteAim = null;
+
+          this.pieces = [];
+          this.striker = null;
+          this.initMatch();
+          this.bindEvents();
+          this.loop();
+        }
+
+        renderWoodBoard() {
+          const off = document.createElement("canvas");
+          off.width = BOARD_SIZE; off.height = BOARD_SIZE;
+          const c = off.getContext("2d");
+
+          // Outer Rosewood Frame
+          c.fillStyle = "#2b1810";
+          c.fillRect(0, 0, BOARD_SIZE, BOARD_SIZE);
+
+          // Inner Birchwood Surface
+          const grad = c.createRadialGradient(300, 300, 40, 300, 300, 360);
+          grad.addColorStop(0, "#f5deb3");
+          grad.addColorStop(1, "#dfc08a");
+          c.fillStyle = grad;
+          c.fillRect(FRAME_W, FRAME_W, BOARD_SIZE - FRAME_W * 2, BOARD_SIZE - FRAME_W * 2);
+
+          // Subtle Wood Grain
+          c.strokeStyle = "rgba(139, 90, 43, 0.06)";
+          c.lineWidth = 1;
+          for (let y = FRAME_W; y < PLAY_MAX; y += 4) {
+            c.beginPath(); c.moveTo(FRAME_W, y); c.lineTo(PLAY_MAX, y); c.stroke();
+          }
+
+          // Center Circle & Foul Lines
+          c.strokeStyle = "#8b261d";
+          c.lineWidth = 2;
+          c.beginPath(); c.arc(300, 300, 56, 0, Math.PI * 2); c.stroke();
+          c.beginPath(); c.arc(300, 300, 16, 0, Math.PI * 2); c.stroke();
+
+          // Baselines
+          const drawBaseline = (x1, y1, x2, y2) => {
+            c.strokeStyle = "#222"; c.lineWidth = 1.5;
+            c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+            [ [x1, y1], [x2, y2] ].forEach(([cx, cy]) => {
+              c.fillStyle = "#b91c1c";
+              c.beginPath(); c.arc(cx, cy, 11, 0, Math.PI * 2); c.fill();
+            });
+          };
+          drawBaseline(155, 488, 445, 488);
+          drawBaseline(155, 112, 445, 112);
+          drawBaseline(112, 155, 112, 445);
+          drawBaseline(488, 155, 488, 445);
+
+          // Corner Pockets
+          POCKETS.forEach(p => {
+            c.fillStyle = "#111";
+            c.beginPath(); c.arc(p.x, p.y, POCKET_R, 0, Math.PI * 2); c.fill();
+          });
+
+          return off;
+        }
+
+        initMatch() {
+          this.scores = { white: 0, black: 0 };
+          this.turn = "white";
+          this.queenState = "board";
+          this.pieces = [];
+
+          // Queen at Center
+          this.pieces.push({ x: 300, y: 300, vx: 0, vy: 0, r: COIN_R, type: "queen", active: true });
+
+          // Inner Ring (6 coins) & Outer Ring (12 coins)
+          const ring1 = ["white", "black", "white", "black", "white", "black"];
+          ring1.forEach((t, i) => {
+            const a = (i * Math.PI) / 3;
+            this.pieces.push({
+              x: 300 + Math.cos(a) * (COIN_R * 2.05),
+              y: 300 + Math.sin(a) * (COIN_R * 2.05),
+              vx: 0, vy: 0, r: COIN_R, type: t, active: true
+            });
+          });
+
+          const ring2 = [
+            "white", "black", "white", "black", "white", "black",
+            "white", "black", "white", "black", "white", "black"
+          ];
+          ring2.forEach((t, i) => {
+            const a = (i * Math.PI) / 6;
+            this.pieces.push({
+              x: 300 + Math.cos(a) * (COIN_R * 4.1),
+              y: 300 + Math.sin(a) * (COIN_R * 4.1),
+              vx: 0, vy: 0, r: COIN_R, type: t, active: true
+            });
+          });
+
+          this.striker = { x: 300, y: 488, vx: 0, vy: 0, r: STRIKER_R, type: "striker", active: true };
+          this.resetStrikerPosition();
+          this.updateHUD();
+        }
+
+        resetStrikerPosition() {
+          this.isMoving = false;
+          this.pocketedThisTurn = [];
+          this.remoteAim = null;
+          this.striker.active = true;
+          this.striker.vx = 0; this.striker.vy = 0;
+          this.striker.x = 300;
+          this.striker.y = this.turn === "white" ? 488 : 112;
+          document.getElementById("striker-pos").value = 300;
+          this.updateHUD();
+
+          if (this.mode === "AI" && this.turn === "black") {
+            setTimeout(() => this.executeAITurn(), 750);
+          }
+        }
+
+        isLocalTurn() {
+          if (this.isMoving) return false;
+          if (this.mode === "PVP") return true;
+          if (this.mode === "AI") return this.turn === "white";
+          if (this.mode === "ONLINE") {
+            return (this.onlineRole === "HOST" && this.turn === "white") ||
+                   (this.onlineRole === "GUEST" && this.turn === "black");
+          }
+          return false;
+        }
+
+        shouldFlipPerspective() {
+          return this.mode === "ONLINE" && this.onlineRole === "GUEST";
+        }
+
+        toLogicalCoords(clientX, clientY) {
+          const rect = this.canvas.getBoundingClientRect();
+          let x = ((clientX - rect.left) / rect.width) * BOARD_SIZE;
+          let y = ((clientY - rect.top) / rect.height) * BOARD_SIZE;
+          if (this.shouldFlipPerspective()) {
+            x = BOARD_SIZE - x;
+            y = BOARD_SIZE - y;
+          }
+          return { x, y };
+        }
+
+        bindEvents() {
+          const slider = document.getElementById("striker-pos");
+          slider.addEventListener("input", (e) => {
+            if (!this.isLocalTurn()) return;
+            let val = parseFloat(e.target.value);
+            if (this.shouldFlipPerspective()) val = BOARD_SIZE - val;
+            this.striker.x = val;
+            this.broadcastState({ type: "SLIDE", x: this.striker.x });
+          });
+
+          const onDown = (e) => {
+            if (!this.isLocalTurn()) return;
+            const pt = e.touches ? e.touches[0] : e;
+            const pos = this.toLogicalCoords(pt.clientX, pt.clientY);
+            const dist = Math.hypot(pos.x - this.striker.x, pos.y - this.striker.y);
+            if (dist <= this.striker.r + 22) {
+              this.isAiming = true;
+              this.aimVec = { x: 0, y: 0 };
+            }
+          };
+
+          const onMove = (e) => {
+            if (!this.isAiming) return;
+            const pt = e.touches ? e.touches[0] : e;
+            const pos = this.toLogicalCoords(pt.clientX, pt.clientY);
+            let dx = this.striker.x - pos.x;
+            let dy = this.striker.y - pos.y;
+            const mag = Math.hypot(dx, dy);
+            const maxPull = 140;
+            if (mag > maxPull) {
+              dx = (dx / mag) * maxPull;
+              dy = (dy / mag) * maxPull;
+            }
+            this.aimVec = { x: dx, y: dy };
+            this.broadcastState({ type: "AIM", vec: this.aimVec });
+          };
+
+          const onUp = () => {
+            if (!this.isAiming) return;
+            this.isAiming = false;
+            const mag = Math.hypot(this.aimVec.x, this.aimVec.y);
+            if (mag > 14) {
+              const vx = this.aimVec.x * 0.24;
+              const vy = this.aimVec.y * 0.24;
+              this.launchStriker(this.striker.x, vx, vy, true);
+            }
+            this.aimVec = { x: 0, y: 0 };
+          };
+
+          this.canvas.addEventListener("mousedown", onDown);
+          window.addEventListener("mousemove", onMove);
+          window.addEventListener("mouseup", onUp);
+          this.canvas.addEventListener("touchstart", onDown, { passive: true });
+          window.addEventListener("touchmove", onMove, { passive: true });
+          window.addEventListener("touchend", onUp);
+        }
+
+        launchStriker(x, vx, vy, broadcast = false) {
+          this.striker.x = x;
+          this.striker.vx = vx;
+          this.striker.vy = vy;
+          this.isMoving = true;
+          this.remoteAim = null;
+          AudioFX.clack(0.8);
+          if (broadcast) {
+            this.broadcastState({ type: "SHOOT", x, vx, vy });
+          }
+        }
+
+        executeAITurn() {
+          if (this.turn !== "black" || this.mode !== "AI") return;
+          const targets = this.pieces.filter(p => p.active && (p.type === "black" || p.type === "queen"));
+          if (!targets.length) return;
+          const target = targets[Math.floor(Math.random() * targets.length)];
+          const strikerX = Math.max(165, Math.min(435, target.x + (Math.random() * 40 - 20)));
+          const angle = Math.atan2(target.y - 112, target.x - strikerX);
+          const power = 24 + Math.random() * 6;
+          this.launchStriker(strikerX, Math.cos(angle) * power, Math.sin(angle) * power, false);
+        }
+
+        stepPhysics() {
+          if (!this.isMoving) return;
+          const all = [...this.pieces.filter(p => p.active)];
+          if (this.striker.active) all.push(this.striker);
+
+          for (let s = 0; s < SUB_STEPS; s++) {
+            // Move & Wall Bounce
+            all.forEach(b => {
+              b.x += b.vx / SUB_STEPS;
+              b.y += b.vy / SUB_STEPS;
+
+              if (b.x - b.r < PLAY_MIN) { b.x = PLAY_MIN + b.r; b.vx = Math.abs(b.vx) * RESTITUTION; }
+              if (b.x + b.r > PLAY_MAX) { b.x = PLAY_MAX - b.r; b.vx = -Math.abs(b.vx) * RESTITUTION; }
+              if (b.y - b.r < PLAY_MIN) { b.y = PLAY_MIN + b.r; b.vy = Math.abs(b.vy) * RESTITUTION; }
+              if (b.y + b.r > PLAY_MAX) { b.y = PLAY_MAX - b.r; b.vy = -Math.abs(b.vy) * RESTITUTION; }
+            });
+
+            // Elastic Collisions
+            for (let i = 0; i < all.length; i++) {
+              for (let j = i + 1; j < all.length; j++) {
+                const a = all[i], b = all[j];
+                const dx = b.x - a.x, dy = b.y - a.y;
+                const dist = Math.hypot(dx, dy);
+                const minDist = a.r + b.r;
+                if (dist > 0 && dist < minDist) {
+                  const nx = dx / dist, ny = dy / dist;
+                  const overlap = minDist - dist;
+                  a.x -= nx * overlap * 0.5; a.y -= ny * overlap * 0.5;
+                  b.x += nx * overlap * 0.5; b.y += ny * overlap * 0.5;
+
+                  const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
+                  const velAlongNormal = rvx * nx + rvy * ny;
+                  if (velAlongNormal < 0) {
+                    const imp = -(1 + RESTITUTION) * velAlongNormal * 0.5;
+                    a.vx -= imp * nx; a.vy -= imp * ny;
+                    b.vx += imp * nx; b.vy += imp * ny;
+                    if (s === 0 && Math.abs(velAlongNormal) > 1.5) {
+                      AudioFX.clack(Math.min(1, Math.abs(velAlongNormal) / 18));
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // Friction & Pocket Detection
+          let anyMoving = false;
+          all.forEach(b => {
+            b.vx *= FRICTION;
+            b.vy *= FRICTION;
+            if (Math.hypot(b.vx, b.vy) < 0.08) { b.vx = 0; b.vy = 0; }
+            else { anyMoving = true; }
+
+            POCKETS.forEach(p => {
+              if (b.active && Math.hypot(b.x - p.x, b.y - p.y) < POCKET_R - 3) {
+                b.active = false;
+                b.vx = 0; b.vy = 0;
+                this.pocketedThisTurn.push(b.type);
+                AudioFX.pocket();
+              }
+            });
+          });
+
+          if (!anyMoving) {
+            this.resolveTurn();
+          }
+        }
+
+        resolveTurn() {
+          this.isMoving = false;
+          const myColor = this.turn;
+          const oppColor = myColor === "white" ? "black" : "white";
+          let keepTurn = false;
+
+          const strikerFoul = this.pocketedThisTurn.includes("striker");
+          const myCoins = this.pocketedThisTurn.filter(t => t === myColor).length;
+          const oppCoins = this.pocketedThisTurn.filter(t => t === oppColor).length;
+          const gotQueen = this.pocketedThisTurn.includes("queen");
+
+          if (myCoins > 0) {
+            this.scores[myColor] += myCoins * 10;
+            keepTurn = true;
+          }
+          if (oppCoins > 0) {
+            this.scores[oppColor] += oppCoins * 10;
+          }
+          if (gotQueen) {
+            this.scores[myColor] += 30;
+            keepTurn = true;
+          }
+          if (strikerFoul) {
+            this.scores[myColor] = Math.max(0, this.scores[myColor] - 10);
+            keepTurn = false;
+          }
+
+          if (!keepTurn) {
+            this.turn = oppColor;
+          }
+          this.resetStrikerPosition();
+        }
+
+        updateHUD() {
+          document.getElementById("p1-score").textContent = this.scores.white;
+          document.getElementById("p2-score").textContent = this.scores.black;
+          document.getElementById("turn-indicator").textContent =
+            this.turn === "white" ? "WHITE'S TURN" : "BLACK'S TURN";
+        }
+
+        draw() {
+          const ctx = this.ctx;
+          ctx.save();
+          if (this.shouldFlipPerspective()) {
+            ctx.translate(BOARD_SIZE, BOARD_SIZE);
+            ctx.rotate(Math.PI);
+          }
+
+          ctx.drawImage(this.boardTex, 0, 0);
+
+          // Aim Guide Line
+          const activeAim = this.isAiming ? this.aimVec : this.remoteAim;
+          if (activeAim && Math.hypot(activeAim.x, activeAim.y) > 8) {
+            ctx.strokeStyle = "rgba(229, 169, 60, 0.85)";
+            ctx.lineWidth = 3;
+            ctx.setLineDash([6, 6]);
+            ctx.beginPath();
+            ctx.moveTo(this.striker.x, this.striker.y);
+            ctx.lineTo(this.striker.x + activeAim.x * 2.1, this.striker.y + activeAim.y * 2.1);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+
+          // Render Pieces
+          this.pieces.forEach(p => {
+            if (!p.active) return;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = p.type === "white" ? "#f8fafc" : p.type === "black" ? "#1e293b" : "#dc2626";
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = p.type === "white" ? "#cbd5e1" : "#0f172a";
+            ctx.stroke();
+          });
+
+          // Render Striker
+          if (this.striker && this.striker.active) {
+            ctx.beginPath();
+            ctx.arc(this.striker.x, this.striker.y, this.striker.r, 0, Math.PI * 2);
+            ctx.fillStyle = "#38bdf8";
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "#ffffff";
+            ctx.stroke();
+          }
+
+          ctx.restore();
+        }
+
+        loop() {
+          this.stepPhysics();
+          this.draw();
+          requestAnimationFrame(() => this.loop());
+        }
+
+        // =========================================================
+        // SUPABASE REALTIME MULTIPLAYER SYNC
+        // =========================================================
+        async connectRoom(code, role) {
+          if (!supabase) {
+            throw new Error("Supabase Anon Key not configured.");
+          }
+          if (this.channel) {
+            await supabase.removeChannel(this.channel);
+          }
+
+          this.roomCode = code;
+          this.onlineRole = role;
+          this.mode = "ONLINE";
+
+          this.channel = supabase.channel(`carrom_room_${code}`, {
+            config: { broadcast: { self: false } }
+          });
+
+          this.channel
+            .on("broadcast", { event: "game_sync" }, ({ payload }) => {
+              if (payload.type === "PLAYER_JOINED" && this.onlineRole === "HOST") {
+                document.getElementById("online-modal").classList.remove("open");
+                document.getElementById("p2-name").textContent = "Black (Friend)";
+                this.initMatch();
+              } else if (payload.type === "SLIDE") {
+                this.striker.x = payload.x;
+              } else if (payload.type === "AIM") {
+                this.remoteAim = payload.vec;
+              } else if (payload.type === "SHOOT") {
+                this.launchStriker(payload.x, payload.vx, payload.vy, false);
+              }
+            })
+            .subscribe((status) => {
+              if (status === "SUBSCRIBED" && role === "GUEST") {
+                this.broadcastState({ type: "PLAYER_JOINED" });
+                document.getElementById("online-modal").classList.remove("open");
+                document.getElementById("p1-name").textContent = "White (Host)";
+                document.getElementById("p2-name").textContent = "Black (You)";
+                this.initMatch();
+              }
+            });
+        }
+
+        broadcastState(payload) {
+          if (this.mode === "ONLINE" && this.channel) {
+            this.channel.send({
+              type: "broadcast",
+              event: "game_sync",
+              payload
+            });
+          }
+        }
+      }
+
+      // Initialize Game
+      const game = new CarromEngine(document.getElementById("board"));
+
+      // UI Mode Switching
+      const setActiveBtn = (id) => {
+        document.querySelectorAll(".modes button").forEach(b => b.classList.remove("active"));
+        document.getElementById(id).classList.add("active");
+      };
+
+      document.getElementById("btn-ai").onclick = () => {
+        setActiveBtn("btn-ai");
+        game.mode = "AI";
+        document.getElementById("p1-name").textContent = "White (You)";
+        document.getElementById("p2-name").textContent = "Black (AI)";
+        game.initMatch();
+      };
+
+      document.getElementById("btn-pvp").onclick = () => {
+        setActiveBtn("btn-pvp");
+        game.mode = "PVP";
+        document.getElementById("p1-name").textContent = "White (P1)";
+        document.getElementById("p2-name").textContent = "Black (P2)";
+        game.initMatch();
+      };
+
+      document.getElementById("btn-online").onclick = () => {
+        setActiveBtn("btn-online");
+        document.getElementById("online-status").textContent = "";
+        document.getElementById("online-modal").classList.add("open");
+      };
+
+      document.getElementById("btn-close-modal").onclick = () => {
+        document.getElementById("online-modal").classList.remove("open");
+      };
+
+      document.getElementById("btn-create-room").onclick = async () => {
+        const statusEl = document.getElementById("online-status");
+        try {
+          const code = Math.random().toString(36).substring(2, 7).toUpperCase();
+          document.getElementById("display-room-code").textContent = code;
+          document.getElementById("created-room-area").style.display = "block";
+          statusEl.className = "status-msg";
+          statusEl.textContent = "Waiting for opponent to join...";
+          await game.connectRoom(code, "HOST");
+        } catch (err) {
+          statusEl.className = "status-msg err";
+          statusEl.textContent = err.message;
+        }
+      };
+
+      document.getElementById("display-room-code").onclick = (e) => {
+        navigator.clipboard.writeText(e.target.textContent);
+        document.getElementById("online-status").textContent = "Code copied! Share with your friend.";
+      };
+
+      document.getElementById("btn-join-room").onclick = async () => {
+        const code = document.getElementById("join-code-input").value.trim().toUpperCase();
+        const statusEl = document.getElementById("online-status");
+        if (code.length !== 5) {
+          statusEl.className = "status-msg err";
+          statusEl.textContent = "Enter a valid 5-character room code.";
+          return;
+        }
+        try {
+          statusEl.className = "status-msg";
+          statusEl.textContent = "Connecting to room...";
+          await game.connectRoom(code, "GUEST");
+        } catch (err) {
+          statusEl.className = "status-msg err";
+          statusEl.textContent = err.message;
+        }
+      };
+    })();
+  </script>
+</body>
+</html>
