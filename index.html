@@ -213,7 +213,7 @@
   <header>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="btn-home" class="icon-btn" title="Return to Nexora Games Home">Home</button>
-      <div class="brand">CARROM STUDIO <span style="font-size:0.65rem;color:var(--text-muted);font-weight:600;">• NEXORA GAMES</span></div>
+      <div class="brand">CARROM STUDIO 0.0.4 <span style="font-size:0.65rem;color:var(--text-muted);font-weight:600;">• NEXORA GAMES</span></div>
     </div>
     <div class="modes">
       <button id="btn-ai" class="active">vs AI</button>
@@ -800,21 +800,28 @@
 
           const nextTurn = keepTurn ? activeShooter : oppColor;
 
-          if (this.mode === "ONLINE" && this.onlineRole === "HOST") {
-            this.turn = nextTurn;
-            this.resetStrikerPosition(false);
-            this.broadcastState({
-              type: "TURN_SYNC",
-              turn: this.turn,
-              scores: this.scores,
-              activeMask: this.pieces.map(p => p.active)
-            });
-          } else if (this.mode !== "ONLINE") {
-            this.turn = nextTurn;
-            this.resetStrikerPosition(true);
+          if (this.mode === "ONLINE") {
+            if (this.onlineRole === "HOST") {
+              this.turn = nextTurn;
+              this.resetStrikerPosition(false);
+              this.broadcastState({
+                type: "BOARD_SYNC",
+                turn: this.turn,
+                scores: this.scores,
+                pieces: this.pieces.map(p => ({ x: p.x, y: p.y, active: p.active }))
+              });
+            } else {
+              // Guest sends final shot positions so Host has exact snapshot if Guest shot
+              this.turn = nextTurn;
+              this.resetStrikerPosition(false);
+              this.broadcastState({
+                type: "GUEST_SHOT_END",
+                pieces: this.pieces.map(p => ({ x: p.x, y: p.y, active: p.active }))
+              });
+            }
           } else {
             this.turn = nextTurn;
-            this.resetStrikerPosition(false);
+            this.resetStrikerPosition(true);
           }
         }
 
@@ -1017,7 +1024,10 @@
               document.getElementById("p2-name").textContent = "Black (Friend)";
               this.initMatch();
             }
-            this.broadcastState({ type: "HOST_ACK_START" });
+            this.broadcastState({
+              type: "HOST_ACK_START",
+              pieces: this.pieces.map(p => ({ x: p.x, y: p.y, active: p.active }))
+            });
             return;
           }
           if (payload.type === "HOST_ACK_START" && this.onlineRole === "GUEST") {
@@ -1029,6 +1039,15 @@
               document.getElementById("p2-name").textContent = "Black (You)";
               this.initMatch();
             }
+            if (Array.isArray(payload.pieces)) {
+              payload.pieces.forEach((sp, idx) => {
+                if (this.pieces[idx]) {
+                  this.pieces[idx].x = sp.x;
+                  this.pieces[idx].y = sp.y;
+                  this.pieces[idx].active = sp.active;
+                }
+              });
+            }
             return;
           }
           if (payload.type === "SLIDE") {
@@ -1039,13 +1058,31 @@
             if (payload.turn) this.turn = payload.turn;
             this.launchStriker(payload.x, payload.vx, payload.vy, false);
             if (typeof payload.y === "number") this.striker.y = payload.y;
-          } else if (payload.type === "TURN_SYNC") {
+          } else if (payload.type === "GUEST_SHOT_END" && this.onlineRole === "HOST") {
+            if (Array.isArray(payload.pieces)) {
+              payload.pieces.forEach((sp, idx) => {
+                if (this.pieces[idx]) {
+                  this.pieces[idx].x = sp.x;
+                  this.pieces[idx].y = sp.y;
+                  this.pieces[idx].active = sp.active;
+                }
+              });
+            }
+            this.broadcastState({
+              type: "BOARD_SYNC",
+              turn: this.turn,
+              scores: this.scores,
+              pieces: this.pieces.map(p => ({ x: p.x, y: p.y, active: p.active }))
+            });
+          } else if (payload.type === "BOARD_SYNC") {
             this.turn = payload.turn;
             this.scores = payload.scores;
-            if (Array.isArray(payload.activeMask)) {
-              this.pieces.forEach((p, idx) => {
-                if (typeof payload.activeMask[idx] === "boolean") {
-                  p.active = payload.activeMask[idx];
+            if (Array.isArray(payload.pieces)) {
+              payload.pieces.forEach((sp, idx) => {
+                if (this.pieces[idx]) {
+                  this.pieces[idx].x = sp.x;
+                  this.pieces[idx].y = sp.y;
+                  this.pieces[idx].active = sp.active;
                 }
               });
             }
