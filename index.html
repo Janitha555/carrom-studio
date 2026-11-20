@@ -851,23 +851,23 @@
 
   <!-- BOOT GATE: BLOCKS ALL INTERACTION UNTIL SITE STATUS IS VERIFIED -->
   <div id="boot-gate">
-    <div class="nexora-animated-brand" style="font-size:1.35rem;">NEXORA GAMES</div>
+    <div class="nexora-animated-brand" style="font-size:1.35rem;" id="boot-brand">NEXORA GAMES</div>
     <div class="maint-spinner" style="width:32px;height:32px;border-width:3px;"></div>
   </div>
 
   <!-- SITE UPDATING / PROCESSING SCREEN -->
   <section id="maintenance-screen">
     <div class="maint-card">
-      <div class="nexora-animated-brand">NEXORA GAMES</div>
+      <div class="nexora-animated-brand" id="maint-brand">NEXORA GAMES</div>
       <div class="maint-spinner"></div>
-      <div class="studio-tag" style="color:var(--accent-gold);border-color:rgba(245,158,11,0.45);background:rgba(245,158,11,0.12);">
+      <div class="studio-tag" style="color:var(--accent-gold);border-color:rgba(245,158,11,0.45);background:rgba(245,158,11,0.12);" id="maint-badge">
         SYSTEM UPDATING IN PROGRESS
       </div>
-      <h2 class="maint-title">Site Updating Process</h2>
-      <p style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">
+      <h2 class="maint-title" id="maint-title">Site Updating Process</h2>
+      <p id="maint-desc" style="font-size:0.86rem;color:var(--text-muted);line-height:1.5;">
         Carrom Studio is currently undergoing scheduled maintenance and feature upgrades. Gameplay is temporarily paused for players.
       </p>
-      <div class="maint-meta">
+      <div class="maint-meta" id="maint-meta">
         <div><strong>Brand Name:</strong> Nexora Creations</div>
         <div><strong>Developer:</strong> Prasad Wickramaarachchi</div>
         <div><strong>Contact Email:</strong> creationsnexora@gmail.com</div>
@@ -881,9 +881,9 @@
   <!-- NEXORA GAMES HOME SCREEN -->
   <section id="home-screen" class="hidden">
     <div class="home-card">
-      <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.2.5</h1>
-      <p class="home-sub">
+      <div class="studio-tag" id="home-brand-tag">NEXORA GAMES</div>
+      <h1 class="home-title" id="home-game-title">CARROM STUDIO 0.2.6</h1>
+      <p class="home-sub" id="home-subtitle">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
       <div class="home-actions">
@@ -900,7 +900,7 @@
     <header>
       <div class="brand-group">
         <button type="button" id="btn-home" title="Nexora Games Home">Nexora</button>
-        <div class="brand">CARROM STUDIO</div>
+        <div class="brand" id="header-brand">CARROM STUDIO</div>
       </div>
       <div class="modes">
         <button type="button" id="btn-ai" class="active">vs AI</button>
@@ -979,7 +979,7 @@
   <div class="modal-backdrop" id="online-warning-modal">
     <div class="modal">
       <h3>Online Multiplayer Notice</h3>
-      <div class="warn-box">
+      <div class="warn-box" id="online-warn-text">
         <strong>Important Risk Notice:</strong> Live matches depend on a stable internet connection. If either player disconnects or goes offline during an active room, the round immediately ends with <strong>No Winner</strong> and no match points are awarded.
       </div>
       <div class="input-row">
@@ -1049,10 +1049,85 @@
         }
       });
 
+      // =========================================================
+      // SUPABASE BACKEND CONFIG & DYNAMIC REMOTE LOGIC/CONFIG
+      // =========================================================
       const _SB_URL = "https://qbwfklkicamrlnuhcega.supabase.co";
       const _SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFid2ZrbGtpY2FtcmxudWhjZWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwNTc5NDIsImV4cCI6MjExMDYzMzk0Mn0.rCyInz8mTdTV5KnHuvDjryrRxS7q28zTCTXGGURFyTE";
       const _ADMIN_FUNCTION_URL = `${_SB_URL}/functions/v1/admin-config`;
       const _TURN_CREDENTIALS_URL = `${_SB_URL}/functions/v1/webrtc-ice`;
+
+      const RemoteBackendConfig = {
+        turnDurationSec: 25,
+        pollIntervalMs: 1500,
+        brandName: "Nexora Creations",
+        studioTag: "NEXORA GAMES",
+        gameTitle: "CARROM STUDIO",
+        homeSubtitle: "Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.",
+        maintTitle: "Site Updating Process",
+        maintDesc: "Carrom Studio is currently undergoing scheduled maintenance and feature upgrades. Gameplay is temporarily paused for players.",
+        developerName: "Prasad Wickramaarachchi",
+        contactEmail: "creationsnexora@gmail.com"
+      };
+
+      const applyRemoteBackendConfig = (cfg) => {
+        if (!cfg || typeof cfg !== "object") return;
+        if (typeof cfg.turn_duration_sec === "number" && cfg.turn_duration_sec >= 5 && cfg.turn_duration_sec <= 120) {
+          RemoteBackendConfig.turnDurationSec = cfg.turn_duration_sec;
+        }
+        if (typeof cfg.poll_interval_ms === "number" && cfg.poll_interval_ms >= 800 && cfg.poll_interval_ms <= 15000) {
+          RemoteBackendConfig.pollIntervalMs = cfg.poll_interval_ms;
+        }
+        if (typeof cfg.brand_name === "string" && cfg.brand_name.trim()) {
+          RemoteBackendConfig.brandName = cfg.brand_name.trim();
+        }
+        if (typeof cfg.studio_tag === "string" && cfg.studio_tag.trim()) {
+          RemoteBackendConfig.studioTag = cfg.studio_tag.trim();
+        }
+        if (typeof cfg.game_title === "string" && cfg.game_title.trim()) {
+          RemoteBackendConfig.gameTitle = cfg.game_title.trim();
+        }
+        if (typeof cfg.home_subtitle === "string" && cfg.home_subtitle.trim()) {
+          RemoteBackendConfig.homeSubtitle = cfg.home_subtitle.trim();
+        }
+        if (typeof cfg.maint_title === "string" && cfg.maint_title.trim()) {
+          RemoteBackendConfig.maintTitle = cfg.maint_title.trim();
+        }
+        if (typeof cfg.maint_desc === "string" && cfg.maint_desc.trim()) {
+          RemoteBackendConfig.maintDesc = cfg.maint_desc.trim();
+        }
+        if (typeof cfg.developer_name === "string" && cfg.developer_name.trim()) {
+          RemoteBackendConfig.developerName = cfg.developer_name.trim();
+        }
+        if (typeof cfg.contact_email === "string" && cfg.contact_email.trim()) {
+          RemoteBackendConfig.contactEmail = cfg.contact_email.trim();
+        }
+
+        const bootBrand = document.getElementById("boot-brand");
+        const maintBrand = document.getElementById("maint-brand");
+        const maintTitle = document.getElementById("maint-title");
+        const maintDesc = document.getElementById("maint-desc");
+        const maintMeta = document.getElementById("maint-meta");
+        const homeTag = document.getElementById("home-brand-tag");
+        const homeTitle = document.getElementById("home-game-title");
+        const homeSub = document.getElementById("home-subtitle");
+        const headerBrand = document.getElementById("header-brand");
+
+        if (bootBrand) bootBrand.textContent = RemoteBackendConfig.studioTag;
+        if (maintBrand) maintBrand.textContent = RemoteBackendConfig.studioTag;
+        if (maintTitle) maintTitle.textContent = RemoteBackendConfig.maintTitle;
+        if (maintDesc) maintDesc.textContent = RemoteBackendConfig.maintDesc;
+        if (maintMeta) {
+          maintMeta.innerHTML =
+            `<div><strong>Brand Name:</strong> ${RemoteBackendConfig.brandName}</div>` +
+            `<div><strong>Developer:</strong> ${RemoteBackendConfig.developerName}</div>` +
+            `<div><strong>Contact Email:</strong> ${RemoteBackendConfig.contactEmail}</div>`;
+        }
+        if (homeTag) homeTag.textContent = RemoteBackendConfig.studioTag;
+        if (homeTitle) homeTitle.textContent = RemoteBackendConfig.gameTitle;
+        if (homeSub) homeSub.textContent = RemoteBackendConfig.homeSubtitle;
+        if (headerBrand) headerBrand.textContent = RemoteBackendConfig.gameTitle;
+      };
 
       const _RTC_ICE_SERVERS = [
         { urls: "stun:stun.l.google.com:19302" },
@@ -1302,8 +1377,8 @@
           this.pocketSparks = [];
           this.queenRings = [];
 
-          this.turnDurationSec = 25;
-          this.turnTimeLeft = 25;
+          this.turnDurationSec = RemoteBackendConfig.turnDurationSec;
+          this.turnTimeLeft = RemoteBackendConfig.turnDurationSec;
           this.turnTimerInterval = null;
           this.aiTimeoutId = null;
           this.paused = true;
@@ -1476,6 +1551,7 @@
             clearTimeout(this.aiTimeoutId);
             this.aiTimeoutId = null;
           }
+          this.turnDurationSec = RemoteBackendConfig.turnDurationSec;
           this.pocketedCounts = { white: 0, black: 0 };
           this.penaltyDue = { white: 0, black: 0 };
           this.queenOwner = null;
@@ -1572,13 +1648,14 @@
           if (powerFill) powerFill.style.width = "0%";
           const timerEl = document.getElementById("turn-timer");
           if (timerEl) {
-            timerEl.textContent = "⏱ 25s";
+            timerEl.textContent = `⏱ ${this.turnDurationSec}s`;
             timerEl.classList.remove("urgent");
           }
         }
 
         startTurnTimer() {
           this.stopTurnTimer();
+          this.turnDurationSec = RemoteBackendConfig.turnDurationSec;
           const timerEl = document.getElementById("turn-timer");
           if (this.paused || this.matchOver || this.roundEndedNoWinner) {
             if (timerEl) {
@@ -3036,6 +3113,16 @@
         }
       };
 
+      let pollTimerId = null;
+
+      const scheduleNextStatusPoll = () => {
+        if (pollTimerId) clearTimeout(pollTimerId);
+        pollTimerId = setTimeout(async () => {
+          await fetchSiteStatus();
+          scheduleNextStatusPoll();
+        }, RemoteBackendConfig.pollIntervalMs);
+      };
+
       const fetchSiteStatus = async () => {
         const headers = {};
         if (_SB_KEY && _SB_KEY !== "YOUR_SUPABASE_ANON_KEY") {
@@ -3046,6 +3133,9 @@
           const res = await fetch(_ADMIN_FUNCTION_URL, { method: "GET", headers, cache: "no-store" });
           if (res.ok) {
             const data = await res.json();
+            if (data && data.config) {
+              applyRemoteBackendConfig(data.config);
+            }
             await applySiteMaintenanceState(Boolean(data.updating));
             return;
           }
@@ -3056,10 +3146,36 @@
         }
       };
 
-      // Live real-time polling + tab focus sync so active players immediately switch to Updating Screen
-      setInterval(() => {
+      if (supabase) {
+        supabase
+          .channel("public:site_config_live")
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "site_config", filter: "id=eq.main" },
+            async (payload) => {
+              const row = payload.new || payload.record;
+              if (row) {
+                if (row.app_config) applyRemoteBackendConfig(row.app_config);
+                if (typeof row.updating === "boolean") {
+                  await applySiteMaintenanceState(row.updating);
+                } else {
+                  await fetchSiteStatus();
+                }
+              }
+            }
+          )
+          .subscribe();
+      }
+
+      scheduleNextStatusPoll();
+
+      window.addEventListener("focus", () => {
         fetchSiteStatus();
-      }, 4000);
+      });
+
+      window.addEventListener("pageshow", () => {
+        fetchSiteStatus();
+      });
 
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible") {
