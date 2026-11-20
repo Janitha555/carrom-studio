@@ -37,6 +37,29 @@
     }
 
     /* =========================================================
+       INITIAL STATUS BOOT GATE (PREVENTS REFRESH CLICK BYPASS)
+       ========================================================= */
+    #boot-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 94;
+      background: radial-gradient(circle at 50% 25%, #111927 0%, #06080d 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      pointer-events: all;
+      transition: opacity 0.22s ease;
+    }
+
+    #boot-gate.hidden {
+      opacity: 0;
+      pointer-events: none;
+      display: none;
+    }
+
+    /* =========================================================
        NEXORA GAMES HOME SCREEN
        ========================================================= */
     #home-screen {
@@ -826,6 +849,12 @@
 </head>
 <body oncontextmenu="return false;">
 
+  <!-- BOOT GATE: BLOCKS ALL INTERACTION UNTIL SITE STATUS IS VERIFIED -->
+  <div id="boot-gate">
+    <div class="nexora-animated-brand" style="font-size:1.35rem;">NEXORA GAMES</div>
+    <div class="maint-spinner" style="width:32px;height:32px;border-width:3px;"></div>
+  </div>
+
   <!-- SITE UPDATING / PROCESSING SCREEN -->
   <section id="maintenance-screen">
     <div class="maint-card">
@@ -850,10 +879,10 @@
   </section>
 
   <!-- NEXORA GAMES HOME SCREEN -->
-  <section id="home-screen">
+  <section id="home-screen" class="hidden">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.2.4</h1>
+      <h1 class="home-title">CARROM STUDIO 0.2.5</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
@@ -2922,6 +2951,7 @@
       // =========================================================
       // UI CONTROLLERS, ADMIN PANEL & MAINTENANCE SCREEN
       // =========================================================
+      const bootGate = document.getElementById("boot-gate");
       const maintenanceScreen = document.getElementById("maintenance-screen");
       const homeScreen = document.getElementById("home-screen");
       const adminModal = document.getElementById("admin-modal");
@@ -2932,6 +2962,7 @@
       let returnHomeAfterInfo = false;
       let adminToken = null;
       let isMaintenanceMode = false;
+      let initialStatusResolved = false;
 
       const openInfo = (title, msg, goHomeOnClose = false) => {
         returnHomeAfterInfo = goHomeOnClose;
@@ -2985,11 +3016,23 @@
 
         if (isMaintenanceMode) {
           closeVictory();
+          onlineWarnModal.classList.remove("open");
+          onlineModal.classList.remove("open");
+          infoModal.classList.remove("open");
+          homeScreen.classList.add("hidden");
           game.pauseGame();
           await game.cleanupOnline();
           maintenanceScreen.classList.add("active");
         } else {
           maintenanceScreen.classList.remove("active");
+          if (!initialStatusResolved) {
+            homeScreen.classList.remove("hidden");
+          }
+        }
+
+        if (!initialStatusResolved) {
+          initialStatusResolved = true;
+          if (bootGate) bootGate.classList.add("hidden");
         }
       };
 
@@ -3004,9 +3047,25 @@
           if (res.ok) {
             const data = await res.json();
             await applySiteMaintenanceState(Boolean(data.updating));
+            return;
           }
         } catch (_) {}
+
+        if (!initialStatusResolved) {
+          await applySiteMaintenanceState(false);
+        }
       };
+
+      // Live real-time polling + tab focus sync so active players immediately switch to Updating Screen
+      setInterval(() => {
+        fetchSiteStatus();
+      }, 4000);
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          fetchSiteStatus();
+        }
+      });
 
       const setActiveBtn = (id) => {
         document.querySelectorAll(".modes button").forEach((b) => {
@@ -3017,8 +3076,8 @@
       };
 
       const enterGameMode = async (mode) => {
-        if (isMaintenanceMode) {
-          maintenanceScreen.classList.add("active");
+        if (!initialStatusResolved || isMaintenanceMode) {
+          if (isMaintenanceMode) maintenanceScreen.classList.add("active");
           return;
         }
         closeVictory();
@@ -3129,6 +3188,9 @@
           const data = await res.json();
           if (res.ok) {
             await applySiteMaintenanceState(Boolean(data.updating));
+            if (!data.updating) {
+              homeScreen.classList.remove("hidden");
+            }
             statusEl.className = "status-msg";
             statusEl.textContent = data.updating
               ? "Switched to Updating / Processing Screen."
