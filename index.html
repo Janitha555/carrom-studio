@@ -160,14 +160,15 @@
     }
 
     /* =========================================================
-       MAINTENANCE / UPDATING SCREEN (NEXORA CREATIONS)
+       MAINTENANCE / UPDATING SCREEN (NEXORA GAMES)
        ========================================================= */
     #maintenance-screen {
       position: fixed;
       inset: 0;
-      z-index: 120;
+      z-index: 95;
       background:
-        radial-gradient(circle at 50% 20%, rgba(245, 158, 11, 0.16), transparent 48%),
+        radial-gradient(circle at 25% 20%, rgba(34, 211, 238, 0.16), transparent 48%),
+        radial-gradient(circle at 75% 80%, rgba(245, 158, 11, 0.18), transparent 48%),
         linear-gradient(160deg, #090d14 0%, #05070b 100%);
       display: none;
       align-items: center;
@@ -184,23 +185,56 @@
       width: 100%;
       max-width: 460px;
       background: rgba(16, 22, 34, 0.96);
-      border: 1px solid rgba(245, 158, 11, 0.35);
+      border: 1px solid rgba(34, 211, 238, 0.32);
       border-radius: 22px;
       padding: 28px 22px;
-      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.85);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.85), 0 0 40px rgba(34, 211, 238, 0.12);
       display: flex;
       flex-direction: column;
       gap: 14px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .nexora-animated-brand {
+      font-size: 1.7rem;
+      font-weight: 950;
+      letter-spacing: 3.5px;
+      text-transform: uppercase;
+      background: linear-gradient(
+        90deg,
+        #22d3ee 0%,
+        #ffffff 25%,
+        #f59e0b 50%,
+        #ffffff 75%,
+        #22d3ee 100%
+      );
+      background-size: 220% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: nexoraShimmer 3.2s linear infinite, nexoraFloat 2.8s ease-in-out infinite;
+      filter: drop-shadow(0 0 14px rgba(34, 211, 238, 0.35));
+    }
+
+    @keyframes nexoraShimmer {
+      0% { background-position: 0% center; }
+      100% { background-position: 220% center; }
+    }
+
+    @keyframes nexoraFloat {
+      0%, 100% { transform: translateY(0px) scale(1); }
+      50% { transform: translateY(-4px) scale(1.03); }
     }
 
     .maint-spinner {
-      width: 44px;
-      height: 44px;
+      width: 42px;
+      height: 42px;
       border-radius: 50%;
       border: 4px solid rgba(34, 211, 238, 0.2);
       border-top-color: var(--accent-gold);
+      border-right-color: var(--accent);
       margin: 0 auto;
-      animation: spinGear 1.1s linear infinite;
+      animation: spinGear 1.05s linear infinite;
     }
 
     @keyframes spinGear {
@@ -208,7 +242,7 @@
     }
 
     .maint-title {
-      font-size: 1.45rem;
+      font-size: 1.38rem;
       font-weight: 900;
       color: var(--accent-gold);
     }
@@ -225,6 +259,24 @@
 
     .maint-meta strong {
       color: var(--accent);
+    }
+
+    #btn-maint-admin {
+      align-self: center;
+      background: rgba(34, 211, 238, 0.1);
+      border: 1px solid rgba(34, 211, 238, 0.35);
+      color: var(--accent);
+      font-size: 0.76rem;
+      padding: 8px 16px;
+      border-radius: 999px;
+      cursor: pointer;
+      position: relative;
+      z-index: 5;
+    }
+
+    #btn-maint-admin:hover {
+      background: rgba(34, 211, 238, 0.22);
+      transform: translateY(-1px);
     }
 
     /* =========================================================
@@ -519,12 +571,12 @@
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.82);
+      background: rgba(0, 0, 0, 0.84);
       backdrop-filter: blur(8px);
       display: none;
       align-items: center;
       justify-content: center;
-      z-index: 105;
+      z-index: 150;
       padding: 16px;
     }
 
@@ -777,6 +829,7 @@
   <!-- SITE UPDATING / PROCESSING SCREEN -->
   <section id="maintenance-screen">
     <div class="maint-card">
+      <div class="nexora-animated-brand">NEXORA GAMES</div>
       <div class="maint-spinner"></div>
       <div class="studio-tag" style="color:var(--accent-gold);border-color:rgba(245,158,11,0.45);background:rgba(245,158,11,0.12);">
         SYSTEM UPDATING IN PROGRESS
@@ -790,7 +843,7 @@
         <div><strong>Developer:</strong> Prasad Wickramaarachchi</div>
         <div><strong>Contact Email:</strong> creationsnexora@gmail.com</div>
       </div>
-      <button id="btn-maint-admin" style="align-self:center;background:transparent;border:1px solid rgba(255,255,255,0.14);color:var(--text-muted);font-size:0.72rem;">
+      <button type="button" id="btn-maint-admin">
         Admin Panel Login
       </button>
     </div>
@@ -800,16 +853,16 @@
   <section id="home-screen">
     <div class="home-card">
       <div class="studio-tag">NEXORA GAMES</div>
-      <h1 class="home-title">CARROM STUDIO 0.2.3</h1>
+      <h1 class="home-title">CARROM STUDIO 0.2.4</h1>
       <p class="home-sub">
         Precision tabletop carrom physics, authentic Red Queen cover rules, real-time online rooms, and grand champion graduation.
       </p>
       <div class="home-actions">
-        <button class="home-btn primary" id="home-play-ai">Play vs Smart AI</button>
-        <button class="home-btn" id="home-play-pvp">Pass & Play (2 Players)</button>
-        <button class="home-btn gold" id="home-play-online">Online Multiplayer</button>
+        <button type="button" class="home-btn primary" id="home-play-ai">Play vs Smart AI</button>
+        <button type="button" class="home-btn" id="home-play-pvp">Pass & Play (2 Players)</button>
+        <button type="button" class="home-btn gold" id="home-play-online">Online Multiplayer</button>
       </div>
-      <button class="admin-trigger-link" id="btn-open-admin">Admin Panel</button>
+      <button type="button" class="admin-trigger-link" id="btn-open-admin">Admin Panel</button>
     </div>
   </section>
 
@@ -817,15 +870,15 @@
   <div id="game-shell">
     <header>
       <div class="brand-group">
-        <button id="btn-home" title="Nexora Games Home">Nexora</button>
+        <button type="button" id="btn-home" title="Nexora Games Home">Nexora</button>
         <div class="brand">CARROM STUDIO</div>
       </div>
       <div class="modes">
-        <button id="btn-ai" class="active">vs AI</button>
-        <button id="btn-pvp">Pass & Play</button>
-        <button id="btn-online">Online</button>
-        <button id="btn-mic" title="Toggle Voice Chat">Mic: OFF</button>
-        <button id="btn-sound" title="Toggle Sound">Sound: ON</button>
+        <button type="button" id="btn-ai" class="active">vs AI</button>
+        <button type="button" id="btn-pvp">Pass & Play</button>
+        <button type="button" id="btn-online">Online</button>
+        <button type="button" id="btn-mic" title="Toggle Voice Chat">Mic: OFF</button>
+        <button type="button" id="btn-sound" title="Toggle Sound">Sound: ON</button>
       </div>
     </header>
 
@@ -870,7 +923,7 @@
         <p>Sign in with your Supabase Admin credentials to switch between Game Home Screen and Updating/Processing Screen.</p>
         <input type="text" id="admin-username" placeholder="Admin Email / Username" autocomplete="username" />
         <input type="password" id="admin-password" placeholder="Admin Password" autocomplete="current-password" />
-        <button id="btn-admin-login" class="active">Login to Admin Panel</button>
+        <button type="button" id="btn-admin-login" class="active">Login to Admin Panel</button>
       </div>
 
       <div id="admin-controls-box" style="display:none;flex-direction:column;gap:12px;">
@@ -885,11 +938,11 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
-        <button id="btn-admin-logout">Logout Admin</button>
+        <button type="button" id="btn-admin-logout">Logout Admin</button>
       </div>
 
       <div class="status-msg" id="admin-status"></div>
-      <button id="btn-close-admin">Close</button>
+      <button type="button" id="btn-close-admin">Close</button>
     </div>
   </div>
 
@@ -901,8 +954,8 @@
         <strong>Important Risk Notice:</strong> Live matches depend on a stable internet connection. If either player disconnects or goes offline during an active room, the round immediately ends with <strong>No Winner</strong> and no match points are awarded.
       </div>
       <div class="input-row">
-        <button id="btn-accept-online" class="active" style="flex:1;">Continue to Lobby</button>
-        <button id="btn-cancel-online">Cancel</button>
+        <button type="button" id="btn-accept-online" class="active" style="flex:1;">Continue to Lobby</button>
+        <button type="button" id="btn-cancel-online">Cancel</button>
       </div>
     </div>
   </div>
@@ -912,16 +965,16 @@
     <div class="modal">
       <h3>Online Multiplayer Lobby</h3>
       <p>Create a private room and share the 5-character code with your friend, or enter a code to join.</p>
-      <button id="btn-create-room" class="active">Create New Room</button>
+      <button type="button" id="btn-create-room" class="active">Create New Room</button>
       <div id="created-room-area" style="display:none;">
         <div class="room-code-box" id="display-room-code" title="Click to copy">-----</div>
       </div>
       <div class="input-row">
         <input type="text" id="join-code-input" maxlength="5" placeholder="CODE" />
-        <button id="btn-join-room">Join</button>
+        <button type="button" id="btn-join-room">Join</button>
       </div>
       <div class="status-msg" id="online-status"></div>
-      <button id="btn-close-modal">Close</button>
+      <button type="button" id="btn-close-modal">Close</button>
     </div>
   </div>
 
@@ -930,7 +983,7 @@
     <div class="modal">
       <h3 id="info-title">Round Notice</h3>
       <p id="info-message"></p>
-      <button id="btn-info-ok" class="active">OK</button>
+      <button type="button" id="btn-info-ok" class="active">OK</button>
     </div>
   </div>
 
@@ -947,8 +1000,8 @@
         <div>BLACK: <span id="final-black-score">0</span></div>
       </div>
       <div class="input-row" style="margin-top:6px;">
-        <button id="btn-play-again" class="active" style="flex:1;">Play Again</button>
-        <button id="btn-victory-home">Nexora Home</button>
+        <button type="button" id="btn-play-again" class="active" style="flex:1;">Play Again</button>
+        <button type="button" id="btn-victory-home">Nexora Home</button>
       </div>
     </div>
   </div>
@@ -3005,11 +3058,15 @@
         adminModal.classList.add("open");
       };
 
-      document.getElementById("btn-open-admin").onclick = openAdminModal;
-      document.getElementById("btn-maint-admin").onclick = openAdminModal;
-      document.getElementById("btn-close-admin").onclick = () => adminModal.classList.remove("open");
+      const btnOpenAdmin = document.getElementById("btn-open-admin");
+      const btnMaintAdmin = document.getElementById("btn-maint-admin");
+      if (btnOpenAdmin) btnOpenAdmin.addEventListener("click", openAdminModal);
+      if (btnMaintAdmin) btnMaintAdmin.addEventListener("click", openAdminModal);
+      document.getElementById("btn-close-admin").addEventListener("click", () => {
+        adminModal.classList.remove("open");
+      });
 
-      document.getElementById("btn-admin-login").onclick = async () => {
+      document.getElementById("btn-admin-login").addEventListener("click", async () => {
         const email = document.getElementById("admin-username").value.trim();
         const password = document.getElementById("admin-password").value;
         const statusEl = document.getElementById("admin-status");
@@ -3020,14 +3077,15 @@
         }
         statusEl.className = "status-msg";
         statusEl.textContent = "Verifying admin credentials...";
+        const reqHeaders = { "Content-Type": "application/json" };
+        if (_SB_KEY && _SB_KEY !== "YOUR_SUPABASE_ANON_KEY") {
+          reqHeaders["apikey"] = _SB_KEY;
+          reqHeaders["Authorization"] = `Bearer ${_SB_KEY}`;
+        }
         try {
           const res = await fetch(_ADMIN_FUNCTION_URL, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "apikey": _SB_KEY,
-              "Authorization": `Bearer ${_SB_KEY}`
-            },
+            headers: reqHeaders,
             body: JSON.stringify({ action: "login", email, password })
           });
           const data = await res.json();
@@ -3046,9 +3104,9 @@
           statusEl.className = "status-msg err";
           statusEl.textContent = "Failed to connect to Supabase Edge Function.";
         }
-      };
+      });
 
-      document.getElementById("maintenance-toggle").onchange = async (e) => {
+      document.getElementById("maintenance-toggle").addEventListener("change", async (e) => {
         const nextUpdating = e.target.checked;
         const statusEl = document.getElementById("admin-status");
         if (!adminToken) {
@@ -3057,14 +3115,15 @@
           e.target.checked = !nextUpdating;
           return;
         }
+        const reqHeaders = { "Content-Type": "application/json" };
+        if (_SB_KEY && _SB_KEY !== "YOUR_SUPABASE_ANON_KEY") {
+          reqHeaders["apikey"] = _SB_KEY;
+          reqHeaders["Authorization"] = `Bearer ${_SB_KEY}`;
+        }
         try {
           const res = await fetch(_ADMIN_FUNCTION_URL, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "apikey": _SB_KEY,
-              "Authorization": `Bearer ${_SB_KEY}`
-            },
+            headers: reqHeaders,
             body: JSON.stringify({ action: "set_updating", token: adminToken, updating: nextUpdating })
           });
           const data = await res.json();
@@ -3084,15 +3143,15 @@
           statusEl.textContent = "Network error while toggling screen.";
           e.target.checked = !nextUpdating;
         }
-      };
+      });
 
-      document.getElementById("btn-admin-logout").onclick = () => {
+      document.getElementById("btn-admin-logout").addEventListener("click", () => {
         adminToken = null;
         document.getElementById("admin-password").value = "";
         document.getElementById("admin-login-box").style.display = "flex";
         document.getElementById("admin-controls-box").style.display = "none";
         document.getElementById("admin-status").textContent = "Logged out.";
-      };
+      });
 
       // Home Screen Triggers
       document.getElementById("home-play-ai").onclick = () => enterGameMode("AI");
